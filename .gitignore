@@ -1,0 +1,43 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+node_modules
+dist
+dist-ssr
+*.local
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+.trae/documents/口播.md
+.trae/documents/需求文档.md
+.trae/documents/业务需求文档.md
+.trae/documents/Gemini_SSH_助手：AI_驱动的赛博朋克_Web_SSH_客户端 (1).pptx
+.trae/documents/Gemini_SSH_助手：AI_驱动的智能化运维管理平台.pptx
+.trae/documents/NestJS 后端初始化与 SSH 中转实现计划.md
+.trae/documents/ppt.md
+.trae/rules/口播文档.md
+.trae/rules/线上配置提示词.md
+.trae/rules/业务需求梳理文档.md
+.trae/rules/ppt 文档生成.md
+.trae/rules/prodcet.md
+backupDel/ServerList.tsx.bak
+改进需求文档.md
+自定义组件.md
+STYLE_GUIDE.md
+TECHNICAL_DOC.md
+pnpm-lock.yaml
+.vercel/project.json

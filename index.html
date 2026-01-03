@@ -1,0 +1,36 @@
+
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="night">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>方块智联智能中枢</title>
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Noto+Sans+SC:wght@400;500;700&display=swap');
+      body { font-family: 'Noto Sans SC', sans-serif; overflow: hidden; }
+      .font-mono { font-family: 'JetBrains Mono', monospace; }
+      /* 隐藏滚动条但保留功能 */
+      .no-scrollbar::-webkit-scrollbar { display: none; }
+      .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+      .terminal-scroll::-webkit-scrollbar { width: 6px; }
+      .terminal-scroll::-webkit-scrollbar-thumb { background: #333; border-radius: 10px; }
+      
+      /* Markdown 代码块基础样式 */
+      .prose pre {
+        background-color: #1a1a1a !important;
+        border: 1px solid #333;
+        border-radius: 0.5rem;
+      }
+    </style>
+<script type="importmap">
+{
+  "imports": {}
+}
+</script>
+<link rel="stylesheet" href="/index.css">
+</head>
+<body class="bg-base-300 min-h-screen">
+    <div id="root"></div>
+<script type="module" src="/index.tsx"></script>
+</body>
+</html>

@@ -1,0 +1,17 @@
+version: '3.8'
+
+services:
+  gemini-ssh-app:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: gemini-ssh-all-in-one
+    ports:
+      - "80:80"
+    environment:
+      - NODE_ENV=production
+      # 在此处添加你的 Gemini API Key 等环境变量
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - OPENAI_BASE_URL=${OPENAI_BASE_URL}
+      - OPENAI_MODEL=${OPENAI_MODEL}
+    restart: always
