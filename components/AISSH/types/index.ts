@@ -54,6 +54,11 @@ export interface AgentConfig {
   model: string;
   temperature: number;
   autoSyncTerminal: boolean;
+  // Custom model configuration
+  useCustomModel?: boolean;
+  customUrl?: string;
+  customKey?: string;
+  customModelName?: string;
 }
 
 export interface AIChatProps {
@@ -105,4 +110,35 @@ export interface BatchResult {
 export interface TerminalProps {
   serverId: string;
   onCommandExecuted?: (command: string, output: string) => void;
+}
+
+export type HighlightColor =
+  | 'red'
+  | 'orange'
+  | 'yellow'
+  | 'green'
+  | 'cyan'
+  | 'blue'
+  | 'violet'
+  | 'white'
+  | string;
+
+export interface HighlightRule {
+  id: string;
+  pattern: string;
+  color: HighlightColor;
+  remark?: string;
+}
+
+export interface PromptProfile {
+  id: string;
+  name: string;
+  deviceType: string;
+  prompt: string;
+  rules: HighlightRule[];
+}
+
+export interface PromptConfigState {
+  profiles: PromptProfile[];
+  selectedProfileId: string | null;
 }

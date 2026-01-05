@@ -7,9 +7,12 @@ import {
   Send, Sparkles, Zap, BrainCircuit,
   PanelLeftClose, PlusCircle, Terminal as TerminalIcon, Copy, Check, Square,
   PanelLeft, Activity, Settings2, ShieldAlert, Thermometer, Cpu, X, ZapOff,
-  Wand2, ShieldCheck, FileDown, Eraser
+  Wand2, ShieldCheck, FileDown, Eraser, ChevronDown
 } from 'lucide-react';
-import { ChatMessage, LogEntry, ChatSession, AgentConfig } from '../types/index';
+import { ChatMessage, LogEntry, ChatSession } from '../types/index';
+import { PromptConfigModal } from './PromptConfigModal';
+import { usePromptStore } from '../store/usePromptStore';
+import { useAIStore } from '../store/useAIStore';
 import { chatWithAIStream, runAutonomousTask } from '../services/geminiService';
 import { sshManager } from '../services/sshService';
 
@@ -66,48 +69,7 @@ export const AIChatPanel = forwardRef<AIChatPanelRef, AIChatPanelProps>(({ logs,
       setActiveSessionId(newId);
     }
   }, [activeServerId]);
-  const defaultPrompt = `
- 
- # 角色设定 
- 你是一位资深 Linux 运维专家 (SRE)，精通各类 Linux 发行版的 system 管理、性能调优和安全加固。你负责在 Gemini SSH 助手中辅助用户进行安全、高效的远程服务器管理。 
- 
- 
- # 核心准则 
- 1. **环境先行** ：在执行任何实质性操作前，务必先执行 \`cat /etc/os-release\` 确认系统版本。根据发行版（Ubuntu, CentOS, Debian 等）差异化命令。 
- 2. **权限管理** ：优先使用 root 权限操作。如果是 Ubuntu 系统，请务必带上 \`sudo\`。 
- 3. **安全红线** ：禁止在未说明风险的情况下执行高危操作（如 \`rm -rf\`, \`format\`, \`mkfs\`, \`>\` 重定向覆盖核心配置等）。 
- 4. **内网限制** ：所有服务器均为内网环境，无法连接外网。 **严禁执行任何联网更新、软件源检查或在线下载操作** （如 \`apt update\`, \`yum check-update\`, \`wget\`, \`curl\` 外部链接等）。 
- 5. **可控执行** ： 
-    - 命令执行超时 5 秒未响应，需立即中断（Ctrl+C）并反馈给用户。 
-    - 避免执行会导致终端阻塞的交互式命令。 
- 
- 
- # 变更规范 
- 1. **备份原则** ：修改重要配置文件前，必须先备份（如 \`cp file file.bak\`）。 
- 2. **审核机制** ：所有修改文件的操作必须进行人工审核确认，严禁在未告知用户的情况下直接静默修改。 
- 3. **验证闭环** ：关键操作完成后，需执行相应的检查命令验证结果是否符合预期（如修改 nginx 配置后运行 \`nginx -t\`）。 
- 4. **中断逻辑** ：若用户中途终止操作： 
-    - **必要操作** ：若该操作是后续步骤的必要前提，则直接停止任务。 
-    - **非必要操作** ：若该操作为可选优化或非核心步骤，则跳过并继续后续流程。 
- 
- 
- # 交互风格 
- - **专业简洁** ：回答直接触达核心，避免废话。 
- - **风险透明** ：在推荐命令时，主动标注风险等级（低/中/高）。 
- - **结构化输出** ：使用 Markdown 格式，代码块需注明语言。`;
-
-  const [agentConfig, setAgentConfig] = useState<AgentConfig>(() => {
-    const saved = localStorage.getItem('ssh_agent_config');
-    if (saved) return JSON.parse(saved);
-    return {
-      maxAttempts: 15,
-      customPrompt: defaultPrompt,
-      safeMode: true,
-      model: import.meta.env.VITE_OPENAI_MODEL || 'qwen-max',
-      temperature: 0.7,
-      autoSyncTerminal: false 
-    };
-  });
+  const { agentConfig, setAgentConfig } = useAIStore();
 
   const [activeSessionId, setActiveSessionId] = useState<string>(sessions[0]?.id || '1');
   const [input, setInput] = useState('');
@@ -116,6 +78,8 @@ export const AIChatPanel = forwardRef<AIChatPanelRef, AIChatPanelProps>(({ logs,
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [copyingId, setCopyingId] = useState<string | null>(null);
   const [copyingCodeId, setCopyingCodeId] = useState<number | null>(null);
+  const [isPromptConfigOpen, setIsPromptConfigOpen] = useState(false);
+  const { profiles, selectedProfileId, selectProfile } = usePromptStore();
   
   const scrollRef = useRef<HTMLDivElement>(null);
   const stopSignalRef = useRef<boolean>(false);
@@ -135,10 +99,6 @@ export const AIChatPanel = forwardRef<AIChatPanelRef, AIChatPanelProps>(({ logs,
   useEffect(() => {
     localStorage.setItem('ssh_ai_sessions', JSON.stringify(sessions));
   }, [sessions]);
-
-  useEffect(() => {
-    localStorage.setItem('ssh_agent_config', JSON.stringify(agentConfig));
-  }, [agentConfig]);
 
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
@@ -591,6 +551,14 @@ export const AIChatPanel = forwardRef<AIChatPanelRef, AIChatPanelProps>(({ logs,
               <div className="text-[9px] text-sci-cyan/70 uppercase tracking-[0.2em] font-black font-sci">神经链路 AI 助手</div>
             </div>
           </div>
+          <div className="flex items-center gap-1">
+            <button onClick={() => setIsPromptConfigOpen(true)} className="h-8 px-2 flex items-center justify-center text-sci-text/80 hover:text-sci-violet transition-all hover:opacity-100" title="设备类型提示语配置">
+              <Sparkles size={14}/>
+            </button>
+            <button onClick={() => setIsSettingsOpen(true)} className="h-8 px-2 flex items-center justify-center text-sci-text/80 hover:text-sci-cyan transition-all hover:opacity-100" title="神经核心配置">
+              <Settings2 size={14}/>
+            </button>
+          </div>
         </div>
 
         <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-4 scroll-smooth custom-scrollbar bg-sci-base/20 relative">
@@ -732,6 +700,21 @@ export const AIChatPanel = forwardRef<AIChatPanelRef, AIChatPanelProps>(({ logs,
 
             <div className="flex items-center gap-1">
               <div className="group relative">
+                <div className="flex items-center bg-black/40 border border-white/10 px-2 py-1">
+                  <span className="text-[10px] text-white/40 uppercase tracking-widest mr-1">类型</span>
+                  <select
+                    value={selectedProfileId || ''}
+                    onChange={(e) => selectProfile(e.target.value)}
+                    className="appearance-none bg-transparent pl-1 pr-5 py-1 text-[10px] font-bold uppercase tracking-widest text-sci-violet outline-none cursor-pointer"
+                  >
+                    {profiles.map(p => (
+                      <option key={p.id} value={p.id}>{p.name}</option>
+                    ))}
+                  </select>
+                  <ChevronDown size={12} className="ml-[-18px] text-sci-violet/50 pointer-events-none" />
+                </div>
+              </div>
+              <div className="group relative">
                 <button 
                   onClick={handleClearSession} 
                   className="h-8 px-2 flex items-center justify-center text-sci-text/80 hover:text-sci-red transition-all hover:opacity-100"
@@ -750,9 +733,6 @@ export const AIChatPanel = forwardRef<AIChatPanelRef, AIChatPanelProps>(({ logs,
                 <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-black text-[10px] text-white whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 border border-white/10 font-sci">导出 Markdown</div>
               </div>
               <div className="w-px h-4 bg-white/10 mx-1"></div>
-              <button onClick={() => setIsSettingsOpen(true)} className="h-8 px-2 flex items-center justify-center text-sci-text/80 hover:text-sci-cyan transition-all hover:opacity-100" title="神经核心配置">
-                <Settings2 size={14}/>
-              </button>
             </div>
           </div>
           <div className="flex gap-3 items-center">
@@ -851,26 +831,95 @@ export const AIChatPanel = forwardRef<AIChatPanelRef, AIChatPanelProps>(({ logs,
                 <label className="text-[11px] font-sci font-bold text-sci-text uppercase tracking-widest flex items-center gap-2">
                   <Sparkles size={14} className="text-sci-violet"/> 操作指令规范
                 </label>
-                <textarea 
-                  value={agentConfig.customPrompt} 
-                  onChange={e => setAgentConfig({...agentConfig, customPrompt: e.target.value})}
-                  className="w-full bg-black/40 border border-white/10 text-sci-text p-3 text-xs font-mono focus:border-sci-violet/30 outline-none transition-all clip-corner min-h-[100px] resize-none"
-                  placeholder="神经链路的附加约束条件..."
-                />
+                <div className="w-full bg-black/40 border border-white/10 text-sci-text p-3 text-xs clip-corner">
+                  <div className="flex items-center justify-between">
+                    <p className="text-white/70">已迁移至“设备类型提示语配置”。请前往进行编辑与管理。</p>
+                    <button 
+                      onClick={() => setIsPromptConfigOpen(true)} 
+                      className="px-2 py-1 text-[10px] bg-sci-violet/10 text-sci-violet border border-sci-violet/30 clip-corner hover:bg-sci-violet hover:text-black transition-all"
+                    >
+                      打开配置
+                    </button>
+                  </div>
+                </div>
               </div>
 
-              <div className="space-y-3">
-                <label className="text-[11px] font-sci font-bold text-sci-text uppercase tracking-widest flex items-center gap-2">
-                  <Cpu size={14} className="text-sci-cyan"/> 认知模型
-                </label>
-                <select 
-                  value={agentConfig.model} 
-                  onChange={e => setAgentConfig({...agentConfig, model: e.target.value as any})}
-                  className="w-full bg-black/40 border border-white/10 text-sci-text px-3 py-2 text-xs font-sci focus:border-sci-cyan/30 outline-none transition-all clip-corner appearance-none"
-                >
-                  <option value="gemini-3-pro-preview">量子核心 (高智能)</option>
-                  <option value="gemini-3-flash-preview">神经闪速 (高速度)</option>
-                </select>
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <label className="text-[11px] font-sci font-bold text-sci-text uppercase tracking-widest flex items-center gap-2">
+                    <Cpu size={14} className="text-sci-cyan"/> 认知模型
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[9px] text-white/40 uppercase font-bold">自定义</span>
+                    <button 
+                      onClick={() => setAgentConfig({...agentConfig, useCustomModel: !agentConfig.useCustomModel})}
+                      className={`w-10 h-5 rounded-full relative transition-colors ${agentConfig.useCustomModel ? 'bg-sci-cyan' : 'bg-white/10'}`}
+                    >
+                      <div className={`absolute top-1 w-3 h-3 rounded-full bg-white transition-all ${agentConfig.useCustomModel ? 'left-6' : 'left-1'}`}></div>
+                    </button>
+                  </div>
+                </div>
+
+                {!agentConfig.useCustomModel ? (
+                  <select 
+                    value={agentConfig.model} 
+                    onChange={e => setAgentConfig({...agentConfig, model: e.target.value as any})}
+                    className="w-full bg-black/40 border border-white/10 text-sci-text px-3 py-2 text-xs font-sci focus:border-sci-cyan/30 outline-none transition-all clip-corner appearance-none"
+                  >
+                    <option value="gemini-3-pro-preview">量子核心 (高智能)</option>
+                    <option value="gemini-3-flash-preview">神经闪速 (高速度)</option>
+                  </select>
+                ) : (
+                  <div className="space-y-3 animate-in fade-in slide-in-from-top-2 duration-200">
+                    <div className="grid grid-cols-2 gap-2 mb-2">
+                      <button 
+                        onClick={() => setAgentConfig({
+                          ...agentConfig, 
+                          customUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+                          customModelName: 'qwen-plus',
+                          useCustomModel: true
+                        })}
+                        className="py-1.5 px-2 bg-sci-cyan/10 border border-sci-cyan/30 text-[10px] text-sci-cyan hover:bg-sci-cyan hover:text-black transition-all clip-corner font-sci font-bold"
+                      >
+                        阿里通义 (Qwen)
+                      </button>
+                      <button 
+                        onClick={() => setAgentConfig({
+                          ...agentConfig, 
+                          customUrl: 'https://api.deepseek.com/v1',
+                          customModelName: 'deepseek-chat',
+                          useCustomModel: true
+                        })}
+                        className="py-1.5 px-2 bg-sci-violet/10 border border-sci-violet/30 text-[10px] text-sci-violet hover:bg-sci-violet hover:text-black transition-all clip-corner font-sci font-bold"
+                      >
+                        DeepSeek
+                      </button>
+                    </div>
+                    <div className="space-y-2">
+                      <input 
+                        type="text" 
+                        placeholder="API Endpoint (URL)" 
+                        value={agentConfig.customUrl || ''}
+                        onChange={e => setAgentConfig({...agentConfig, customUrl: e.target.value})}
+                        className="w-full bg-black/40 border border-white/10 text-sci-text px-3 py-2 text-[11px] font-mono focus:border-sci-cyan/30 outline-none transition-all clip-corner"
+                      />
+                      <input 
+                        type="password" 
+                        placeholder="API Key" 
+                        value={agentConfig.customKey || ''}
+                        onChange={e => setAgentConfig({...agentConfig, customKey: e.target.value})}
+                        className="w-full bg-black/40 border border-white/10 text-sci-text px-3 py-2 text-[11px] font-mono focus:border-sci-cyan/30 outline-none transition-all clip-corner"
+                      />
+                      <input 
+                        type="text" 
+                        placeholder="Model Name" 
+                        value={agentConfig.customModelName || ''}
+                        onChange={e => setAgentConfig({...agentConfig, customModelName: e.target.value})}
+                        className="w-full bg-black/40 border border-white/10 text-sci-text px-3 py-2 text-[11px] font-mono focus:border-sci-cyan/30 outline-none transition-all clip-corner"
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="space-y-3">
@@ -916,6 +965,7 @@ export const AIChatPanel = forwardRef<AIChatPanelRef, AIChatPanelProps>(({ logs,
           </div>
         </div>
       )}
+      {isPromptConfigOpen && <PromptConfigModal onClose={() => setIsPromptConfigOpen(false)} />}
     </div>
   );
 });

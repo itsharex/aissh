@@ -1,14 +1,52 @@
 import OpenAI from 'openai';
 import { ChatMessage, AgentConfig } from '../types';
 import { AIService, AIServiceFactory } from './aiServiceFactory';
+import { usePromptStore } from '../store/usePromptStore';
+import { useAIStore } from '../store/useAIStore';
 
-const openai = new OpenAI({
-  apiKey: import.meta.env.VITE_OPENAI_API_KEY,
-  baseURL: import.meta.env.VITE_OPENAI_BASE_URL,
-  dangerouslyAllowBrowser: true
-});
+const getAIClient = () => {
+  const { agentConfig } = useAIStore.getState();
+  
+  if (agentConfig.useCustomModel && agentConfig.customUrl && agentConfig.customKey) {
+    return new OpenAI({
+      apiKey: agentConfig.customKey,
+      baseURL: agentConfig.customUrl,
+      dangerouslyAllowBrowser: true
+    });
+  }
 
-const getModel = () => import.meta.env.VITE_OPENAI_MODEL || 'qwen-max';
+  return new OpenAI({
+    apiKey: import.meta.env.VITE_OPENAI_API_KEY,
+    baseURL: import.meta.env.VITE_OPENAI_BASE_URL,
+    dangerouslyAllowBrowser: true
+  });
+};
+
+const getModel = () => {
+  const { agentConfig } = useAIStore.getState();
+  if (agentConfig.useCustomModel && agentConfig.customModelName) {
+    return agentConfig.customModelName;
+  }
+  return import.meta.env.VITE_OPENAI_MODEL || 'qwen-max';
+};
+
+const getSelectedPrompt = (): string => {
+  try {
+    const { profiles, selectedProfileId } = usePromptStore.getState();
+    const found = profiles.find(p => p.id === selectedProfileId) || profiles[0];
+    if (!found) return '';
+    
+    return `
+[设备配置信息]
+- 类型名称: ${found.name}
+- 设备标识: ${found.deviceType}
+- 核心指令规范: 
+${found.prompt}
+`;
+  } catch {
+    return '';
+  }
+};
 
 const isRiskyCommand = (cmd: string): boolean => {
   const riskyKeywords = [
@@ -23,12 +61,13 @@ export class GeminiAIService implements AIService {
   async predictCommandRisk(command: string, signal?: AbortSignal) {
     if (!command.trim() || command.length < 2) return null;
     try {
-      const response = await openai.chat.completions.create({
+      const devicePrompt = getSelectedPrompt();
+      const response = await getAIClient().chat.completions.create({
         model: getModel(),
         messages: [
           {
             role: 'system',
-            content: '你是一个 Linux 安全专家。请分析以下命令并返回 JSON。要求：1. explanation: 简短的中文功能说明。2. riskLevel: "low", "medium", 或 "high"。3. warning: 如果风险等级中或高，说明原因，否则为空。'
+            content: `你是一个 Linux 安全专家。${devicePrompt ? `\n\n${devicePrompt}` : ''}\n请分析以下命令并返回 JSON。要求：1. explanation: 简短的中文功能说明。2. riskLevel: "low", "medium", 或 "high"。3. warning: 如果风险等级中或高，说明原因，否则为空。`
           },
           {
             role: 'user',
@@ -53,10 +92,18 @@ export class GeminiAIService implements AIService {
     shouldStop?: () => boolean
   ) {
     try {
+      const devicePrompt = getSelectedPrompt();
       const MAX_HISTORY_MESSAGES = 20;
-      const recentHistory = history.length > MAX_HISTORY_MESSAGES 
-        ? history.slice(-MAX_HISTORY_MESSAGES) 
-        : history;
+      
+      // 过滤掉已经在 history 中的最后一条消息，避免重复
+      let recentHistory = history;
+      if (history.length > 0 && history[history.length - 1].content === message) {
+        recentHistory = history.slice(0, -1);
+      }
+
+      recentHistory = recentHistory.length > MAX_HISTORY_MESSAGES 
+        ? recentHistory.slice(-MAX_HISTORY_MESSAGES) 
+        : recentHistory;
 
       const mappedHistory: OpenAI.Chat.ChatCompletionMessageParam[] = recentHistory.map((m) => {
         const role: 'user' | 'assistant' | 'system' =
@@ -65,16 +112,13 @@ export class GeminiAIService implements AIService {
         return { role, content };
       });
 
-      const stream = await openai.chat.completions.create({
-        model: getModel(),
-        messages: [
-          {
-            role: 'system',
-            content: `你是一个专家级 Linux 运维 AI。请使用 Markdown 格式回答。
-            
-如果你正在分析日志，请遵循以下格式以获得更好的可视化效果：
+      const systemPrompt = `你是一个运维 专家级 AI。
+${devicePrompt ? `\n${devicePrompt}\n` : ''}
+请根据上述设备配置信息和指令规范进行回答。使用 Markdown 格式。
+
+如果你正在分析日志，请遵循以下格式：
 1. 如果要展示日志原始内容，请使用 \`\`\`log 代码块。
-2. 如果要提供结构化的分析概览，请在回答末尾包含一个 \`\`\`json 代码块，其结构如下：
+2. 如果要提供结构化的分析概览，请在回答末尾包含一个 \`\`\`json 代码块，结构如下：
 {
   "log_analysis": {
     "summary": { "Errors": 0, "Warnings": 0, "Info": 0 },
@@ -82,7 +126,14 @@ export class GeminiAIService implements AIService {
     "recommendations": ["建议1", "建议2"]
   }
 }
-保持回答简洁专业。`
+保持回答简洁专业。`;
+
+      const stream = await getAIClient().chat.completions.create({
+        model: getModel(),
+        messages: [
+          {
+            role: 'system',
+            content: systemPrompt
           },
           ...mappedHistory,
           { role: 'user', content: message }
@@ -102,10 +153,14 @@ export class GeminiAIService implements AIService {
 
   async chatWithAI(prompt: string, history: ChatMessage[]): Promise<string> {
     try {
-      const response = await openai.chat.completions.create({
+      const devicePrompt = getSelectedPrompt();
+      const response = await getAIClient().chat.completions.create({
         model: getModel(),
         messages: [
-          { role: 'system', content: '你是一个专家级 Linux 运维 AI。' },
+          { 
+            role: 'system', 
+            content: `你是一个专家级 Linux 运维 AI。${devicePrompt ? `\n\n${devicePrompt}` : ''}` 
+          },
           ...history.map(m => ({ role: m.role as any, content: m.content })),
           { role: 'user', content: prompt }
         ]
@@ -134,10 +189,12 @@ export const runAutonomousTask = async (
   shouldStop: () => boolean
 ) => {
   const modelName = getModel();
+  const devicePrompt = getSelectedPrompt();
   
   let systemPrompt = `目标: ${goal}
         
   你现在是自主运维代理。请根据目标执行命令。
+  ${devicePrompt ? `\n${devicePrompt}\n` : ''}
   必须严格遵循以下 JSON 格式回答，不要包含任何额外文字：
   {
     "thought": "描述你当前的思考过程和计划步骤",
@@ -157,9 +214,7 @@ export const runAutonomousTask = async (
     systemPrompt += `\n5. 安全模式开启：如果你计划执行 rm, kill, reboot 等危险操作，系统会要求用户手动确认。`;
   }
 
-  if (config.customPrompt) {
-    systemPrompt += `\n额外准则：${config.customPrompt}`;
-  }
+  // 操作指令规范已迁移至设备类型提示语配置，通过 selected prompt 注入
 
   let history: OpenAI.Chat.ChatCompletionMessageParam[] = [
     {
@@ -180,7 +235,7 @@ export const runAutonomousTask = async (
     const currentAttemptInfo = `当前是第 ${attempts + 1} 次尝试（最多 ${maxAttempts} 次）。`;
     
     try {
-      const response = await openai.chat.completions.create({
+      const response = await getAIClient().chat.completions.create({
         model: modelName,
         messages: [
           ...history,
@@ -195,13 +250,19 @@ export const runAutonomousTask = async (
       if (plan.isDone) {
         await onStep({ thought: plan.thought, isDone: true, summary: "" });
         
-        const summaryPrompt = "任务已完成。请生成一份详细的 Markdown 格式总结报告。要求：\n1. 包含执行结果的详细说明。\n2. 如果涉及数据对比或列表展示，必须使用 Markdown 表格。\n3. 结构清晰，使用标题和代码块。\n4. 语气专业。";
+        const summaryPrompt = `任务已完成。请根据以下设备配置生成一份详细的 Markdown 格式总结报告。
+${devicePrompt ? `\n${devicePrompt}\n` : ''}
+要求：
+1. 包含执行结果的详细说明。
+2. 如果涉及数据对比或列表展示，必须使用 Markdown 表格。
+3. 结构清晰，使用标题和代码块。
+4. 语气专业。`;
         
         history.push({ role: 'assistant', content: JSON.stringify(plan) });
         
         let accumulatedSummary = "";
         try {
-          const stream = await openai.chat.completions.create({
+          const stream = await getAIClient().chat.completions.create({
             model: modelName,
             messages: [
               ...history,
@@ -272,10 +333,14 @@ export const runAutonomousTask = async (
 
 export const analyzeLogs = async (log: string) => {
   try {
-    const response = await openai.chat.completions.create({
+    const devicePrompt = getSelectedPrompt();
+    const response = await getAIClient().chat.completions.create({
       model: getModel(),
       messages: [
-        { role: 'system', content: '你是一个 Linux 日志分析专家。请分析以下日志并给出简洁的分析结果。' },
+        { 
+          role: 'system', 
+          content: `你是一个 Linux 日志分析专家。${devicePrompt ? `\n\n${devicePrompt}` : ''}\n请分析以下日志并给出简洁的分析结果。` 
+        },
         { role: 'user', content: log }
       ]
     });

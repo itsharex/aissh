@@ -179,13 +179,51 @@ export const Terminal: React.FC<TerminalProps> = ({ logs, serverId, onClear, onA
 
   // Keyword Highlighting Utility
   const highlightData = (data: string) => {
-    // Keywords with ANSI escape codes
-    // [1;31m = Bold Red, [1;33m = Bold Yellow, [1;32m = Bold Green, [1;36m = Bold Cyan
-    return data
+    const getSelectedRules = () => {
+      try {
+        const profiles = JSON.parse(localStorage.getItem('ssh_prompt_profiles') || '[]');
+        const selectedId = localStorage.getItem('ssh_selected_prompt_profile');
+        const found = profiles.find((p: any) => p.id === selectedId) || profiles[0];
+        return found?.rules || [];
+      } catch {
+        return [];
+      }
+    };
+    const codeFor = (color: string) => {
+      switch (color) {
+        case 'red':
+          return '\x1b[1;31m';
+        case 'orange':
+        case 'yellow':
+          return '\x1b[1;33m';
+        case 'green':
+          return '\x1b[1;32m';
+        case 'cyan':
+          return '\x1b[1;36m';
+        case 'blue':
+          return '\x1b[1;34m';
+        case 'violet':
+          return '\x1b[1;35m';
+        case 'white':
+          return '\x1b[1;37m';
+        default:
+          return '\x1b[1;36m';
+      }
+    };
+    let out = data
       .replace(/\b(error|failed|fail|severe|critical)\b/gi, '\x1b[1;31m$1\x1b[0m')
       .replace(/\b(warn|warning)\b/gi, '\x1b[1;33m$1\x1b[0m')
       .replace(/\b(success|connected|ok|ready|passed)\b/gi, '\x1b[1;32m$1\x1b[0m')
       .replace(/\b(info|note|notice)\b/gi, '\x1b[1;36m$1\x1b[0m');
+    const rules = getSelectedRules();
+    for (const r of rules) {
+      if (!r.pattern) continue;
+      try {
+        const regex = new RegExp(r.pattern, 'gi');
+        out = out.replace(regex, (m) => `${codeFor(r.color)}${m}\x1b[0m`);
+      } catch {}
+    }
+    return out;
   };
 
   // Handle incoming data

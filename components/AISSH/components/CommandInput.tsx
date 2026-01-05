@@ -6,6 +6,7 @@ import { AIServiceFactory } from '../services/aiServiceFactory';
 import { SingleExecutionStrategy, BatchExecutionStrategy, BatchCompareStrategy, CommandExecutor } from '../services/commandStrategy';
 import { CommandTemplateModal } from './CommandTemplateModal';
 import { BatchResultCompare } from './BatchResultCompare';
+import { usePromptStore } from '../store/usePromptStore';
 
 interface CommandInputProps {
   onInsertCommand: (command: string) => void;
@@ -13,6 +14,7 @@ interface CommandInputProps {
 
 export const CommandInput: React.FC<CommandInputProps> = ({ onInsertCommand }) => {
   const { servers, activeSessionId, openSessions, addLog, commandHistory, addCommandToHistory, batchResults, addBatchResult, clearBatchResults, commandTemplates } = useSSHStore();
+  const { profiles, selectedProfileId, selectProfile } = usePromptStore();
   const [globalCommand, setGlobalCommand] = useState('');
   const [operationMode, setOperationMode] = useState<'single' | 'batch' | 'compare'>('single');
   const [isAIProcessing, setIsAIProcessing] = useState(false);
@@ -193,6 +195,20 @@ export const CommandInput: React.FC<CommandInputProps> = ({ onInsertCommand }) =
             ) : (
               <><TerminalIcon size={12}/> SINGLE</>
             )}
+          </div>
+
+          <div className="flex items-center gap-1 shrink-0 bg-black/40 border border-white/10 px-2 py-1 relative">
+            <span className="text-[10px] text-white/40 uppercase tracking-widest">类型</span>
+            <select
+              value={selectedProfileId || ''}
+              onChange={(e) => selectProfile(e.target.value)}
+              className="appearance-none bg-transparent pl-2 pr-6 py-1 text-[10px] font-bold uppercase tracking-widest text-sci-violet outline-none cursor-pointer z-10"
+            >
+              {profiles.map(p => (
+                <option key={p.id} value={p.id}>{p.name}</option>
+              ))}
+            </select>
+            <ChevronDown size={12} className="absolute right-2 top-1/2 -translate-y-1/2 text-sci-violet/50 pointer-events-none" />
           </div>
 
           <div className="relative flex-1 group">
