@@ -44,6 +44,7 @@ TECHNICAL_DOC.md
 # pnpm-lock.yaml
 .vercel/project.json
 release/*
+back-rust/target/*
 back-rust/target/.rustc_info.json
 back-rust/target/debug/.cargo-lock
 back-rust/target/debug/back-rust

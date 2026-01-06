@@ -139,3 +139,29 @@ for (const target of targets) {
 
   console.log(`Prepared sidecar: ${path.relative(projectRoot, sidecarPath)}`);
 }
+
+// Create universal binary for macOS if we built both architectures
+if (platform === 'darwin') {
+  console.log('Creating universal binary for macOS...');
+  const x64Path = path.join(binariesDir, 'back-rust-x86_64-apple-darwin');
+  const armPath = path.join(binariesDir, 'back-rust-aarch64-apple-darwin');
+  const universalPath = path.join(binariesDir, 'back-rust-universal-apple-darwin');
+
+  if (fs.existsSync(x64Path) && fs.existsSync(armPath)) {
+    const lipoResult = spawnSync('lipo', [
+      '-create',
+      '-output', universalPath,
+      x64Path,
+      armPath
+    ], { stdio: 'inherit' });
+
+    if (lipoResult.status === 0) {
+      fs.chmodSync(universalPath, 0o755);
+      console.log(`Created universal sidecar: ${path.relative(projectRoot, universalPath)}`);
+    } else {
+      console.error('Failed to create universal binary using lipo');
+      // If lipo fails, we might still want to proceed if only one arch is needed, 
+      // but since we requested universal-apple-darwin in tauri build, it will fail later anyway.
+    }
+  }
+}
