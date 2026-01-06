@@ -21,16 +21,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: install pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8
+
       - name: setup node
         uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: 'pnpm'
-
-      - name: install pnpm
-        uses: pnpm/action-setup@v2
-        with:
-          version: 8
 
       - name: install Rust stable
         uses: dtolnay/rust-toolchain@stable
@@ -57,3 +57,5 @@ jobs:
           releaseDraft: true
           prerelease: false
           args: ${{ matrix.platform == 'macos-latest' && '--target universal-apple-darwin' || '' }}
+        # 显式使用 pnpm
+        beforeBuildCommand: pnpm install && node scripts/prepare-tauri-sidecar.mjs release && pnpm build
