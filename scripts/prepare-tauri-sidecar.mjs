@@ -13,13 +13,19 @@ const profile = profileArg === 'release' ? 'release' : 'debug';
 const platform = process.platform;
 const arch = process.arch;
 
-const targetTriple = (() => {
-  if (platform === 'darwin' && arch === 'arm64') return 'aarch64-apple-darwin';
-  if (platform === 'darwin' && arch === 'x64') return 'x86_64-apple-darwin';
-  if (platform === 'win32' && arch === 'x64') return 'x86_64-pc-windows-msvc';
-  if (platform === 'linux' && arch === 'x64') return 'x86_64-unknown-linux-gnu';
-  throw new Error(`Unsupported platform/arch: ${platform}/${arch}`);
-})();
+// Determine targets based on platform
+const targets = [];
+if (platform === 'darwin') {
+  // For macOS, we build both architectures to support Universal binaries
+  targets.push('x86_64-apple-darwin');
+  targets.push('aarch64-apple-darwin');
+} else if (platform === 'win32') {
+  targets.push('x86_64-pc-windows-msvc');
+} else if (platform === 'linux') {
+  targets.push('x86_64-unknown-linux-gnu');
+} else {
+  throw new Error(`Unsupported platform: ${platform}`);
+}
 
 const exeExt = platform === 'win32' ? '.exe' : '';
 
@@ -32,7 +38,9 @@ const findFirstExisting = (candidates) => {
 
 const ensureTauriIcons = () => {
   const iconsDir = path.join(projectRoot, 'src-tauri', 'icons');
-  fs.mkdirSync(iconsDir, { recursive: true });
+  if (!fs.existsSync(iconsDir)) {
+      fs.mkdirSync(iconsDir, { recursive: true });
+  }
 
   const pngSource = findFirstExisting([
     path.join(
@@ -78,6 +86,8 @@ const ensureTauriIcons = () => {
 
   for (const t of targets) {
     if (!t.src) continue;
+    // Only copy if destination doesn't exist to avoid overwriting user icons if they added them manually
+    // But for now, let's overwrite to ensure it works as expected by previous logic
     fs.copyFileSync(t.src, t.dst);
   }
 };
@@ -87,31 +97,45 @@ const manifestPath = path.join(backRustDir, 'Cargo.toml');
 
 ensureTauriIcons();
 
-const cargoArgs = ['build', '--manifest-path', manifestPath];
-if (profile === 'release') cargoArgs.push('--release');
-
-const buildResult = spawnSync('cargo', cargoArgs, {
-  cwd: projectRoot,
-  stdio: 'inherit',
-});
-
-if (buildResult.status !== 0) {
-  process.exit(buildResult.status ?? 1);
-}
-
-const builtBinaryPath = path.join(backRustDir, 'target', profile, `back-rust${exeExt}`);
-if (!fs.existsSync(builtBinaryPath)) {
-  throw new Error(`Built binary not found: ${builtBinaryPath}`);
-}
-
 const binariesDir = path.join(projectRoot, 'src-tauri', 'binaries');
 fs.mkdirSync(binariesDir, { recursive: true });
 
-const sidecarPath = path.join(binariesDir, `back-rust-${targetTriple}${exeExt}`);
-fs.copyFileSync(builtBinaryPath, sidecarPath);
+for (const target of targets) {
+  console.log(`Building for target: ${target}`);
+  
+  // Ensure target is added (best effort)
+  try {
+      spawnSync('rustup', ['target', 'add', target], { stdio: 'inherit' });
+  } catch (e) {
+      console.warn(`Failed to add target ${target}, assuming it exists or rustup is missing.`);
+  }
 
-if (platform !== 'win32') {
-  fs.chmodSync(sidecarPath, 0o755);
+  const cargoArgs = ['build', '--manifest-path', manifestPath, '--target', target];
+  if (profile === 'release') cargoArgs.push('--release');
+
+  const buildResult = spawnSync('cargo', cargoArgs, {
+    cwd: projectRoot,
+    stdio: 'inherit',
+  });
+
+  if (buildResult.status !== 0) {
+    console.error(`Failed to build for ${target}`);
+    process.exit(buildResult.status ?? 1);
+  }
+
+  // When using --target, artifacts are in target/<target_triple>/<profile>
+  const builtBinaryPath = path.join(backRustDir, 'target', target, profile, `back-rust${exeExt}`);
+  
+  if (!fs.existsSync(builtBinaryPath)) {
+    throw new Error(`Built binary not found: ${builtBinaryPath}`);
+  }
+
+  const sidecarPath = path.join(binariesDir, `back-rust-${target}${exeExt}`);
+  fs.copyFileSync(builtBinaryPath, sidecarPath);
+
+  if (platform !== 'win32') {
+    fs.chmodSync(sidecarPath, 0o755);
+  }
+
+  console.log(`Prepared sidecar: ${path.relative(projectRoot, sidecarPath)}`);
 }
-
-process.stdout.write(`Prepared sidecar: ${path.relative(projectRoot, sidecarPath)}\n`);
