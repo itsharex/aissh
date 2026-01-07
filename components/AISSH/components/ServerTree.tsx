@@ -1,11 +1,12 @@
 
 import React, { useState, useCallback } from 'react';
 import { Server, Folder, ServerTreeProps } from '../types/index';
-import { ChevronRight, ChevronDown, Folder as FolderIcon, Server as ServerIcon, Plus, FolderPlus, Edit3, Trash2, LayoutGrid, Terminal } from 'lucide-react';
+import { ChevronRight, ChevronDown, Folder as FolderIcon, Server as ServerIcon, Plus, FolderPlus, Edit3, Trash2, LayoutGrid, Terminal, FileCode } from 'lucide-react';
 import { ContextMenu, ContextMenuItem } from '../common/ContextMenu';
 
 export const ServerTree: React.FC<ServerTreeProps> = ({ 
-  servers, folders, activeServerId, onSelectServer, onAddServer, onEditServer, onDeleteServer, onAddFolder, onEditFolder, onDeleteFolder, onMove, width = 260
+  servers, folders, activeServerId, onSelectServer, onAddServer, onEditServer, onDeleteServer, onAddFolder, onEditFolder, onDeleteFolder, onMove, width = 260,
+  onOpenFileManager
 }) => {
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
   const [editingFolderId, setEditingFolderId] = useState<string | null>(null);
@@ -44,13 +45,14 @@ export const ServerTree: React.FC<ServerTreeProps> = ({
       const server = data as Server;
       items.push(
         { label: '打开终端', icon: <Terminal size={14}/>, onClick: () => onSelectServer(server.id) },
+        { label: '文件管理', icon: <FileCode size={14}/>, onClick: () => onOpenFileManager?.(server.id) },
         { label: '编辑节点配置', icon: <Edit3 size={14}/>, onClick: () => onEditServer(server) },
         { label: '终止连接', icon: <Trash2 size={14}/>, onClick: () => onDeleteServer(server.id), variant: 'danger' }
       );
     }
 
     setContextMenu({ x: e.clientX, y: e.clientY, items });
-  }, [onAddServer, onAddFolder, onDeleteFolder, onSelectServer, onEditServer, onDeleteServer]);
+  }, [onAddServer, onAddFolder, onDeleteFolder, onSelectServer, onEditServer, onDeleteServer, onOpenFileManager]);
 
   const handleRootContextMenu = useCallback((e: React.MouseEvent) => {
     if (e.currentTarget !== e.target) return;

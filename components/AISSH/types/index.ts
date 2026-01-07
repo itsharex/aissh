@@ -90,6 +90,7 @@ export interface ServerTreeProps {
   onDeleteFolder: (id: string) => void;
   onMove: (type: 'server' | 'folder', id: string, newParentId: string | null) => void;
   width?: number;
+  onOpenFileManager?: (serverId: string) => void;
 }
 
 export interface CommandTemplate {
@@ -143,4 +144,39 @@ export interface PromptProfile {
 export interface PromptConfigState {
   profiles: PromptProfile[];
   selectedProfileId: string | null;
+}
+
+// File Management Types
+export interface FileSession {
+  id: string;
+  serverId: string;
+  filePath: string;
+  content: string;
+  isModified: boolean;
+  originalContent: string;
+  language?: string;
+}
+
+export interface FileNode {
+  id: string;
+  name: string;
+  type: 'file' | 'folder';
+  path: string;
+  size?: number;
+  permissions?: string;
+  owner?: string;
+  group?: string;
+  children?: FileNode[];
+  isLoaded?: boolean; // For lazy loading
+}
+
+export interface FileOperation {
+  id: string;
+  type: 'upload' | 'download' | 'move' | 'delete' | 'copy';
+  sourcePath: string;
+  targetPath?: string;
+  status: 'pending' | 'in-progress' | 'completed' | 'error';
+  progress?: number;
+  error?: string;
+  serverId: string;
 }

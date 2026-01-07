@@ -168,7 +168,9 @@ export const CommandInput: React.FC<CommandInputProps> = ({ onInsertCommand }) =
     setSuggestions([]);
   };
 
-  if (openSessions.length === 0) return null;
+  const terminalSessions = openSessions.filter(id => !id.endsWith('#files'));
+
+  if (terminalSessions.length === 0) return null;
 
   return (
     <>

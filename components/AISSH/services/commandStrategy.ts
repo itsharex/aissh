@@ -19,7 +19,9 @@ export class SingleExecutionStrategy implements ExecutionStrategy {
 
 export class BatchExecutionStrategy implements ExecutionStrategy {
   async execute(command: string, context: { openSessions: string[] }) {
-    context.openSessions.forEach(id => {
+    // Filter out file manager sessions
+    const terminalSessions = context.openSessions.filter(id => !id.endsWith('#files'));
+    terminalSessions.forEach(id => {
       sshManager.sendCommand(command, id);
     });
   }
@@ -30,7 +32,10 @@ export class BatchCompareStrategy implements ExecutionStrategy {
     openSessions: string[], 
     onBatchResults?: (results: BatchResult[]) => void 
   }) {
-    const promises = context.openSessions.map(async (id) => {
+    // Filter out file manager sessions
+    const terminalSessions = context.openSessions.filter(id => !id.endsWith('#files'));
+    
+    const promises = terminalSessions.map(async (id) => {
       try {
         const output = await sshManager.executeCommand(command, id);
         return {
