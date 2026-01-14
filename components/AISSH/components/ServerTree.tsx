@@ -1,8 +1,8 @@
-
 import React, { useState, useCallback } from 'react';
 import { Server, Folder, ServerTreeProps } from '../types/index';
-import { ChevronRight, ChevronDown, Folder as FolderIcon, Server as ServerIcon, Plus, FolderPlus, Edit3, Trash2, LayoutGrid, Terminal, FileCode } from 'lucide-react';
+import { ChevronRight, ChevronDown, Folder as FolderIcon, Server as ServerIcon, Plus, FolderPlus, Edit3, Trash2, LayoutGrid, Terminal, FileCode, Signal, Activity } from 'lucide-react';
 import { ContextMenu, ContextMenuItem } from '../common/ContextMenu';
+import { motion, AnimatePresence } from 'framer-motion';
 
 export const ServerTree: React.FC<ServerTreeProps> = ({ 
   servers, folders, activeServerId, onSelectServer, onAddServer, onEditServer, onDeleteServer, onAddFolder, onEditFolder, onDeleteFolder, onMove, width = 260,
@@ -72,134 +72,195 @@ export const ServerTree: React.FC<ServerTreeProps> = ({
     const currentServers = servers.filter(s => s.parentId === parentId);
 
     return (
-      <div className={`${parentId !== null ? 'pl-4 border-l border-sci-cyan/10 ml-2 mt-1' : ''} space-y-0.5`}>
-        {currentFolders.map(folder => (
-          <div key={folder.id} 
-            draggable
-            onDragStart={(e) => {
-              e.stopPropagation();
-              e.dataTransfer.setData('move_data', JSON.stringify({ type: 'folder', id: folder.id }));
-            }}
-            onDragOver={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              setDragOverId(folder.id);
-            }}
-            onDragLeave={(e) => {
-              e.stopPropagation();
-              setDragOverId(null);
-            }}
-            onDrop={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              setDragOverId(null);
-              const dataStr = e.dataTransfer.getData('move_data');
-              if (!dataStr) return;
-              const data = JSON.parse(dataStr);
-              onMove(data.type, data.id, folder.id);
-            }}
-          >
-            <div 
-              className={`flex items-center gap-2 p-1 hover:bg-sci-cyan/5 rounded cursor-pointer group transition-all border border-transparent
-                ${dragOverId === folder.id ? 'bg-sci-cyan/10 border-sci-cyan/30 shadow-[0_0_10px_rgba(0,243,255,0.1)]' : ''}`}
-              onClick={(e) => toggleFolder(e, folder.id)}
-              onContextMenu={(e) => handleContextMenu(e, 'folder', folder)}
+      <div className={`${parentId !== null ? 'pl-3 border-l border-sci-cyan/10 ml-2.5 mt-1' : ''} space-y-1`}>
+        <AnimatePresence initial={false}>
+          {currentFolders.map(folder => (
+            <motion.div 
+              key={folder.id} 
+              layout
+              initial={{ opacity: 0, x: -10 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -10 }}
+              transition={{ duration: 0.2 }}
+              draggable
+              onDragStart={(e) => {
+                e.stopPropagation();
+                e.dataTransfer.setData('move_data', JSON.stringify({ type: 'folder', id: folder.id }));
+              }}
+              onDragOver={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setDragOverId(folder.id);
+              }}
+              onDragLeave={(e) => {
+                e.stopPropagation();
+                setDragOverId(null);
+              }}
+              onDrop={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setDragOverId(null);
+                const dataStr = e.dataTransfer.getData('move_data');
+                if (!dataStr) return;
+                const data = JSON.parse(dataStr);
+                onMove(data.type, data.id, folder.id);
+              }}
             >
-              <div className="w-4 h-4 flex items-center justify-center shrink-0 text-sci-violet/60">
-                {expandedFolders.has(folder.id) ? <ChevronDown size={14}/> : <ChevronRight size={14}/>}
+              <div 
+                className={`flex items-center gap-2 p-1.5 hover:bg-white/5 rounded cursor-pointer group transition-all border border-transparent relative overflow-hidden
+                  ${dragOverId === folder.id ? 'bg-sci-cyan/10 border-sci-cyan/30 shadow-[0_0_10px_rgba(0,243,255,0.1)]' : ''}`}
+                onClick={(e) => toggleFolder(e, folder.id)}
+                onContextMenu={(e) => handleContextMenu(e, 'folder', folder)}
+              >
+                 {/* Hover Scan Effect */}
+                 <div className="absolute inset-0 bg-gradient-to-r from-transparent via-sci-cyan/5 to-transparent -translate-x-full group-hover:animate-[shimmer_1s_infinite] pointer-events-none"></div>
+
+                <div className="w-4 h-4 flex items-center justify-center shrink-0 text-sci-violet/60 group-hover:text-sci-violet transition-colors">
+                  {expandedFolders.has(folder.id) ? <ChevronDown size={14}/> : <ChevronRight size={14}/>}
+                </div>
+                <FolderIcon size={14} className={`shrink-0 transition-colors ${expandedFolders.has(folder.id) ? 'text-sci-violet fill-sci-violet/10 shadow-[0_0_8px_rgba(139,92,246,0.2)]' : 'text-sci-dim group-hover:text-sci-text'}`}/>
+                
+                {editingFolderId === folder.id ? (
+                  <input 
+                    autoFocus
+                    defaultValue={folder.name}
+                    onBlur={(e) => handleFolderRename(folder.id, e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') handleFolderRename(folder.id, (e.target as HTMLInputElement).value);
+                      if (e.key === 'Escape') setEditingFolderId(null);
+                    }}
+                    className="text-[11px] bg-black/60 outline-none flex-1 border border-sci-cyan/30 text-sci-text rounded px-1.5 py-0.5 min-w-0 font-sci"
+                    onClick={(e) => e.stopPropagation()}
+                  />
+                ) : (
+                  <span className={`text-[11px] flex-1 truncate select-none font-sci font-medium text-sci-text/80 group-hover:text-sci-text tracking-wide ${width < 180 ? 'hidden' : ''}`}>{folder.name}</span>
+                )}
               </div>
-              <FolderIcon size={14} className={`shrink-0 ${expandedFolders.has(folder.id) ? 'text-sci-violet fill-sci-violet/10 shadow-[0_0_8px_rgba(139,92,246,0.2)]' : 'text-sci-dim'}`}/>
-              
-              {editingFolderId === folder.id ? (
-                <input 
-                  autoFocus
-                  defaultValue={folder.name}
-                  onBlur={(e) => handleFolderRename(folder.id, e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') handleFolderRename(folder.id, (e.target as HTMLInputElement).value);
-                    if (e.key === 'Escape') setEditingFolderId(null);
-                  }}
-                  className="text-[11px] bg-sci-obsidian/80 outline-none flex-1 border border-sci-cyan/30 text-sci-text rounded px-1.5 py-0.5 min-w-0 font-sci"
-                  onClick={(e) => e.stopPropagation()}
-                />
-              ) : (
-                <span className={`text-[11px] flex-1 truncate select-none font-sci font-medium text-sci-text tracking-wide ${width < 180 ? 'hidden' : ''}`}>{folder.name}</span>
+              <AnimatePresence>
+                {expandedFolders.has(folder.id) && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                  >
+                    {renderItems(folder.id)}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </motion.div>
+          ))}
+          {currentServers.map(server => (
+            <motion.div 
+              key={server.id}
+              layout
+              initial={{ opacity: 0, x: -10 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -10 }}
+              transition={{ duration: 0.2 }}
+              draggable
+              onDragStart={(e) => {
+                e.stopPropagation();
+                e.dataTransfer.setData('move_data', JSON.stringify({ type: 'server', id: server.id }));
+              }}
+              onClick={() => onSelectServer(server.id)}
+              onContextMenu={(e) => handleContextMenu(e, 'server', server)}
+              className={`
+                flex items-center gap-2 p-1.5 pl-3 rounded-r cursor-pointer transition-all group border-l-[3px] relative overflow-hidden mb-0.5
+                ${activeServerId === server.id 
+                  ? 'bg-gradient-to-r from-sci-cyan/10 to-transparent border-l-sci-cyan text-sci-cyan shadow-[inset_10px_0_20px_-10px_rgba(0,243,255,0.2)]' 
+                  : 'border-l-transparent hover:bg-white/5 text-sci-text/60 hover:text-sci-text hover:border-l-sci-text/20'}
+              `}
+            >
+              {/* Active/Hover Glow */}
+              {activeServerId === server.id && (
+                <div className="absolute inset-0 bg-sci-cyan/5 animate-pulse pointer-events-none"></div>
               )}
-            </div>
-            {expandedFolders.has(folder.id) && renderItems(folder.id)}
-          </div>
-        ))}
-        {currentServers.map(server => (
-          <div 
-            key={server.id}
-            draggable
-            onDragStart={(e) => {
-              e.stopPropagation();
-              e.dataTransfer.setData('move_data', JSON.stringify({ type: 'server', id: server.id }));
-            }}
-            onClick={() => onSelectServer(server.id)}
-            onContextMenu={(e) => handleContextMenu(e, 'server', server)}
-            className={`
-              flex items-center gap-2 p-1.5 pl-3 rounded cursor-pointer transition-all group border border-transparent
-              ${activeServerId === server.id ? 'bg-sci-cyan/10 text-sci-cyan border-l-2 border-l-sci-cyan shadow-[inset_0_0_15px_rgba(0,243,255,0.05)] font-bold' : 'hover:bg-sci-cyan/5 text-sci-text/70 hover:text-sci-text'}
-            `}
-          >
-            <ServerIcon size={13} className={
-              server.status === 'connected' ? 'text-sci-green animate-pulse' : 
-              server.status === 'connecting' ? 'text-sci-cyan animate-spin' : 
-              server.status === 'error' ? 'text-sci-red' :
-              'text-sci-dim opacity-40'
-            }/>
-            <div className={`flex-1 min-w-0 ${width < 180 ? 'hidden' : ''}`}>
-               <div className="text-[11px] font-sci font-bold truncate leading-tight tracking-wider">{server.name}</div>
-               <div className={`text-[9px] font-sci opacity-40 truncate leading-tight tracking-tighter ${width < 220 ? 'hidden' : ''}`}>{server.ip}</div>
-            </div>
-          </div>
-        ))}
+
+              <ServerIcon size={13} className={`transition-all ${
+                server.status === 'connected' ? 'text-sci-green drop-shadow-[0_0_5px_rgba(34,197,94,0.5)]' : 
+                server.status === 'connecting' ? 'text-sci-cyan animate-spin' : 
+                server.status === 'error' ? 'text-sci-red' :
+                'text-sci-dim opacity-40 group-hover:opacity-80'
+              }`}/>
+              
+              <div className={`flex-1 min-w-0 ${width < 180 ? 'hidden' : ''} relative z-10 flex flex-col justify-center`}>
+                 <div className={`text-[11px] font-sci truncate leading-tight tracking-wider transition-all ${activeServerId === server.id ? 'font-bold text-sci-cyan' : 'font-medium'}`}>
+                    {server.name}
+                 </div>
+                 <div className={`text-[9px] font-mono truncate leading-tight tracking-tighter transition-opacity ${width < 220 ? 'hidden' : ''} ${activeServerId === server.id ? 'text-sci-cyan/60' : 'opacity-30 group-hover:opacity-50'}`}>
+                    {server.ip}
+                 </div>
+              </div>
+              
+              {/* Connection Status Dot */}
+              {server.status === 'connected' && (
+                <div className="absolute right-2 w-1 h-1 rounded-full bg-sci-green shadow-[0_0_5px_rgba(34,197,94,0.8)]"></div>
+              )}
+            </motion.div>
+          ))}
+        </AnimatePresence>
       </div>
     );
   };
 
   return (
-    <div className="flex flex-col h-full bg-sci-obsidian/50 border-r border-sci-cyan/10">
+    <div className="flex flex-col h-full bg-gradient-to-b from-black/20 via-sci-obsidian/40 to-black/60 backdrop-blur-md border-r border-sci-cyan/10 relative overflow-hidden">
+      {/* 装饰性背景网格 */}
+      <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.02)_1px,transparent_1px)] bg-[size:24px_24px] pointer-events-none"></div>
+      <div className="absolute top-0 left-0 w-full h-32 bg-gradient-to-b from-sci-cyan/5 to-transparent pointer-events-none"></div>
+
       {/* Header */}
       <div 
-        className="p-4 border-b border-sci-cyan/10 flex items-center justify-between bg-sci-panel/30"
+        className="p-4 border-b border-white/5 flex items-center justify-between bg-black/20 backdrop-blur-md relative z-10"
         style={{ WebkitAppRegion: 'drag' } as any}
       >
-        <div className="flex items-center gap-2">
-          <div className="p-1.5 bg-sci-cyan/10 border border-sci-cyan/30 text-sci-cyan rounded-sm">
-            <ServerIcon size={16} className="animate-pulse" />
+        <div className="flex items-center gap-3">
+          <div className="relative group cursor-pointer">
+            <div className="absolute inset-0 bg-sci-cyan/20 blur-sm rounded animate-pulse group-hover:bg-sci-cyan/40 transition-all"></div>
+            <div className="relative p-1.5 bg-black border border-sci-cyan/30 text-sci-cyan rounded-sm shadow-[0_0_10px_rgba(0,243,255,0.1)]">
+              <LayoutGrid size={16} />
+            </div>
           </div>
-          <div className={width < 200 ? 'hidden' : ''}>
-            <h2 className="text-sm font-sci font-bold text-sci-text uppercase tracking-widest">方块 AI 助手</h2>
+          <div className={`flex flex-col ${width < 200 ? 'hidden' : ''}`}>
+            <a 
+              href="https://www.bintelai.com" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="group/link block"
+            >
+              <h2 className="text-sm font-black font-sci text-white/90 uppercase tracking-widest group-hover/link:text-sci-cyan transition-colors drop-shadow-[0_0_5px_rgba(255,255,255,0.1)]">
+                方块智联
+              </h2>
+            </a>
             <div className="flex items-center gap-1.5 mt-0.5">
-              <span className="flex h-1.5 w-1.5 rounded-full bg-sci-cyan animate-pulse"></span>
-              <span className="text-[9px] text-sci-cyan/40 uppercase tracking-tighter font-bold font-sci hidden sm:block">网络上行活跃</span>
+              <span className="flex h-1.5 w-1.5 rounded-full bg-sci-green animate-pulse shadow-[0_0_5px_#22c55e]"></span>
+              <span className="text-[9px] text-sci-cyan/50 uppercase tracking-[0.1em] font-bold font-sci hidden sm:block">
+                SYSTEM ONLINE
+              </span>
             </div>
           </div>
         </div>
         <div className="flex items-center gap-1" style={{ WebkitAppRegion: 'no-drag' } as any}>
           <button 
             onClick={() => onAddFolder(null)}
-            className="p-1.5 text-sci-dim hover:text-sci-cyan hover:bg-sci-cyan/5 transition-all rounded"
+            className="p-1.5 text-white/40 hover:text-sci-violet hover:bg-sci-violet/10 transition-all rounded clip-corner"
             title="创建目录"
           >
-            <FolderPlus size={16} />
+            <FolderPlus size={15} />
           </button>
           <button 
             onClick={() => onAddServer(null)}
-            className="p-1.5 text-sci-dim hover:text-sci-cyan hover:bg-sci-cyan/5 transition-all rounded"
+            className="p-1.5 text-white/40 hover:text-sci-cyan hover:bg-sci-cyan/10 transition-all rounded clip-corner"
             title="关联新节点"
           >
-            <Plus size={18} />
+            <Plus size={17} />
           </button>
         </div>
       </div>
 
       {/* Content */}
       <div 
-        className={`flex-1 overflow-y-auto custom-scrollbar p-2 space-y-1 transition-colors
+        className={`flex-1 overflow-y-auto custom-scrollbar p-3 space-y-1 transition-colors relative z-10
           ${dragOverId === 'root' ? 'bg-sci-cyan/5' : ''}`}
         onContextMenu={handleRootContextMenu}
         onDragOver={(e) => {
@@ -218,29 +279,38 @@ export const ServerTree: React.FC<ServerTreeProps> = ({
       >
         {renderItems(null)}
         {(folders.length === 0 && servers.length === 0) && (
-          <div className="h-full flex flex-col items-center justify-center p-6 text-center">
-            <div className="w-16 h-16 mb-4 rounded-full bg-sci-cyan/5 border border-sci-cyan/10 flex items-center justify-center text-sci-cyan/20">
-              <FolderIcon size={32} />
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.8 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="h-full flex flex-col items-center justify-center p-6 text-center"
+          >
+            <div className="w-20 h-20 mb-4 rounded-full bg-gradient-to-b from-sci-cyan/5 to-transparent border border-sci-cyan/10 flex items-center justify-center text-sci-cyan/20 relative group">
+              <div className="absolute inset-0 rounded-full border border-sci-cyan/20 animate-[spin_10s_linear_infinite] border-dashed"></div>
+              <ServerIcon size={32} />
             </div>
-            <p className="text-xs text-sci-cyan/40 font-sci uppercase tracking-widest">未检测到节点</p>
+            <p className="text-xs text-sci-cyan/40 font-sci uppercase tracking-widest mb-1">未检测到活动节点</p>
+            <p className="text-[10px] text-white/20 font-mono mb-6">NO ACTIVE NODES DETECTED</p>
             <button 
               onClick={() => onAddServer(null)}
-              className="mt-4 px-4 py-2 bg-sci-cyan/10 border border-sci-cyan/30 text-sci-cyan text-[10px] font-sci uppercase tracking-[0.2em] hover:bg-sci-cyan hover:text-black transition-all clip-corner"
+              className="px-5 py-2 bg-sci-cyan/10 border border-sci-cyan/30 text-sci-cyan text-[10px] font-sci uppercase tracking-[0.2em] hover:bg-sci-cyan hover:text-black transition-all clip-corner shadow-[0_0_15px_rgba(0,243,255,0.1)] hover:shadow-[0_0_20px_rgba(0,243,255,0.4)]"
             >
               初始化连接
             </button>
-          </div>
+          </motion.div>
         )}
       </div>
       
       {/* 底部装饰性状态栏 */}
-      <div className="p-2 border-t border-sci-cyan/10 bg-sci-panel/50 flex items-center justify-between">
-         <div className="text-[9px] text-sci-cyan/40 font-sci flex items-center gap-1.5 tracking-widest uppercase font-bold">
-           <span className="w-1.5 h-1.5 rounded-full bg-sci-green shadow-[0_0_5px_#22c55e]"></span>
-           神经核心就绪
+      <div className="p-2.5 border-t border-white/5 bg-black/40 backdrop-blur flex items-center justify-between relative z-10">
+         <div className="flex items-center gap-2">
+           <Activity size={12} className="text-sci-cyan/40" />
+           <div className="flex flex-col">
+             <span className="text-[9px] text-white/30 font-sci tracking-widest uppercase font-bold">Network Status</span>
+             <span className="text-[8px] text-sci-green/60 font-mono tracking-wider">STABLE</span>
+           </div>
          </div>
-         <div className={`text-[9px] text-sci-cyan/20 font-sci tracking-tighter uppercase font-bold ${width < 220 ? 'hidden' : ''}`}>
-           V2.5.4_上行链路
+         <div className={`text-[9px] text-white/20 font-mono tracking-tighter uppercase ${width < 220 ? 'hidden' : ''}`}>
+           <span className="opacity-50">LATENCY:</span> 12ms
          </div>
       </div>
 

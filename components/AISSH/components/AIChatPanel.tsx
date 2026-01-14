@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef, useImperativeHandle, forwardRef } from 'react';
 import { createPortal } from 'react-dom';
 import ReactMarkdown from 'react-markdown';
@@ -17,6 +16,9 @@ import { useAIStore } from '../store/useAIStore';
 import { useSSHStore } from '../store/useSSHStore';
 import { chatWithAIStream, runAutonomousTask } from '../services/geminiService';
 import { sshManager } from '../services/sshService';
+import { motion, AnimatePresence } from 'framer-motion';
+import { AnimatedText, GlitchText } from '../common/AnimatedText';
+import { AIEmptyState } from './AIEmptyState';
 
 interface AIChatPanelProps {
   logs: LogEntry[];
@@ -33,17 +35,6 @@ export interface AIChatPanelRef {
 
 export const AIChatPanel = forwardRef<AIChatPanelRef, AIChatPanelProps>(({ logs, activeServerId, onInsertCommand, onSwitchServer, onAICommand }, ref) => {
   const [sessions, setSessions] = useState<ChatSession[]>(() => {
-    const saved = localStorage.getItem('ssh_ai_sessions');
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        return parsed.map((s: any) => ({ 
-          ...s, 
-          createdAt: new Date(s.createdAt), 
-          messages: s.messages.map((m: any) => ({ ...m, timestamp: new Date(m.timestamp) })) 
-        }));
-      } catch (e) { return [{ id: '1', title: '新的运维会话', messages: [], mode: 'chat', createdAt: new Date() }]; }
-    }
     return [{ id: '1', title: '新的运维会话', messages: [], mode: 'chat', createdAt: new Date() }];
   });
 
@@ -166,9 +157,11 @@ export const AIChatPanel = forwardRef<AIChatPanelRef, AIChatPanelProps>(({ logs,
     createNewSession
   }));
 
+  // 不再持久化对话会话到 localStorage，确保每次初始化刷新时列表都是空的
   useEffect(() => {
-    localStorage.setItem('ssh_ai_sessions', JSON.stringify(sessions));
-  }, [sessions]);
+    // 清理旧的持久化数据，确保之后也不会误读
+    localStorage.removeItem('ssh_ai_sessions');
+  }, []);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -445,13 +438,19 @@ export const AIChatPanel = forwardRef<AIChatPanelRef, AIChatPanelProps>(({ logs,
     const { summary, details, recommendations } = data;
     
     return (
-      <div className="my-4 space-y-4 animate-in fade-in slide-in-from-top-2 duration-500">
+      <motion.div 
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ duration: 0.5 }}
+        className="my-4 space-y-4"
+      >
         {/* 概览卡片 */}
         <div className="grid grid-cols-3 gap-3">
           {summary && Object.entries(summary).map(([key, value]: [string, any]) => (
-            <div key={key} className="bg-black/40 border border-white/5 p-3 clip-corner text-center">
-              <div className="text-[10px] text-white/40 uppercase tracking-widest mb-1 font-sci">{key}</div>
-              <div className={`text-xl font-black font-sci ${
+            <div key={key} className="bg-black/40 border border-white/5 p-3 clip-corner text-center relative overflow-hidden group">
+              <div className="absolute inset-0 bg-sci-cyan/5 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+              <div className="text-[10px] text-white/40 uppercase tracking-widest mb-1 font-sci relative z-10">{key}</div>
+              <div className={`text-xl font-black font-sci relative z-10 ${
                 key.toLowerCase().includes('error') ? 'text-red-400' : 
                 key.toLowerCase().includes('warn') ? 'text-orange-300' : 'text-sci-cyan'
               }`}>
@@ -463,14 +462,15 @@ export const AIChatPanel = forwardRef<AIChatPanelRef, AIChatPanelProps>(({ logs,
 
         {/* 详细分析 */}
         {details && (
-          <div className="bg-sci-panel/40 border border-white/10 p-4 clip-corner">
+          <div className="bg-sci-panel/40 border border-white/10 p-4 clip-corner relative">
+             <div className="absolute top-0 left-0 w-1 h-full bg-sci-cyan/30"></div>
             <div className="flex items-center gap-2 mb-3 text-sci-cyan/60">
               <Activity size={14}/>
               <span className="text-[10px] font-sci font-black uppercase tracking-widest">异常检测详情</span>
             </div>
             <div className="space-y-2">
               {Array.isArray(details) ? details.map((item, i) => (
-                <div key={i} className="flex gap-3 text-xs border-l-2 border-sci-cyan/20 pl-3 py-1">
+                <div key={i} className="flex gap-3 text-xs border-l-2 border-sci-cyan/20 pl-3 py-1 hover:bg-white/5 transition-colors">
                   <span className="text-white/40 font-mono shrink-0">#{i+1}</span>
                   <span className="text-sci-text/90">{item}</span>
                 </div>
@@ -496,7 +496,7 @@ export const AIChatPanel = forwardRef<AIChatPanelRef, AIChatPanelProps>(({ logs,
             </div>
           </div>
         )}
-      </div>
+      </motion.div>
     );
   };
 
@@ -604,13 +604,18 @@ export const AIChatPanel = forwardRef<AIChatPanelRef, AIChatPanelProps>(({ logs,
         </div>
         <div className="flex-1 overflow-y-auto px-2 space-y-1 mt-2 custom-scrollbar">
           {sessions.filter(s => s.serverId === activeServerId).map(s => (
-            <div key={s.id} onClick={() => { 
-              if (s.serverId && onSwitchServer && s.serverId !== activeServerId) {
-                onSwitchServer(s.serverId);
-              }
-              setActiveSessionId(s.id); 
-              lastProcessedLogRef.current = logs.length; 
-            }} className={`p-3 cursor-pointer text-xs flex flex-col gap-1 border transition-all clip-corner ${activeSessionId === s.id ? 'bg-sci-cyan/10 border-sci-cyan/30 text-sci-cyan font-bold' : 'border-transparent hover:bg-white/5 text-sci-text'}`}>
+            <motion.div 
+              whileHover={{ scale: 1.02 }}
+              key={s.id} 
+              onClick={() => { 
+                if (s.serverId && onSwitchServer && s.serverId !== activeServerId) {
+                  onSwitchServer(s.serverId);
+                }
+                setActiveSessionId(s.id); 
+                lastProcessedLogRef.current = logs.length; 
+              }} 
+              className={`p-3 cursor-pointer text-xs flex flex-col gap-1 border transition-all clip-corner ${activeSessionId === s.id ? 'bg-sci-cyan/10 border-sci-cyan/30 text-sci-cyan font-bold' : 'border-transparent hover:bg-white/5 text-sci-text'}`}
+            >
               <div className="flex items-center gap-2">
                  <Activity size={14} className="shrink-0"/> 
                  <span className="truncate flex-1 font-sci uppercase tracking-tight">{s.title}</span>
@@ -620,7 +625,7 @@ export const AIChatPanel = forwardRef<AIChatPanelRef, AIChatPanelProps>(({ logs,
                  <span>•</span>
                  <span>{s.createdAt.toLocaleDateString()}</span>
               </div>
-            </div>
+            </motion.div>
           ))}
         </div>
       </div>
@@ -633,7 +638,9 @@ export const AIChatPanel = forwardRef<AIChatPanelRef, AIChatPanelProps>(({ logs,
           <div className="flex items-center gap-3 min-w-0">
             {!showHistory && <button style={{ WebkitAppRegion: 'no-drag' } as any} className="p-1.5 hover:bg-white/5 text-sci-text/60 hover:text-sci-cyan transition-colors shrink-0" onClick={() => setShowHistory(true)}><PanelLeft size={18}/></button>}
             <div className="truncate min-w-0">
-              <h2 className="font-sci font-bold text-sm truncate text-sci-text uppercase tracking-widest">{activeSession.title}</h2>
+              <h2 className="font-sci font-bold text-sm truncate text-sci-text uppercase tracking-widest">
+                <GlitchText text={activeSession.title} />
+              </h2>
               <div className="text-[9px] text-sci-cyan/70 uppercase tracking-[0.2em] font-black font-sci truncate">神经链路 AI 助手</div>
             </div>
           </div>
@@ -662,95 +669,115 @@ export const AIChatPanel = forwardRef<AIChatPanelRef, AIChatPanelProps>(({ logs,
              <div className="absolute top-10 left-10 w-64 h-64 border border-sci-cyan rounded-full animate-pulse"></div>
              <div className="absolute bottom-10 right-10 w-96 h-96 border border-sci-violet rounded-full animate-pulse delay-700"></div>
           </div>
-          {activeSession.messages.map(msg => (
-            <div key={msg.id} className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'} animate-in fade-in slide-in-from-bottom-2 duration-300`}>
-              <div className={`max-w-[95%] p-4 text-[13px] border shadow-lg transition-all clip-corner relative group/msg
-                ${msg.isDone ? 'bg-sci-green/10 border-sci-green/30 text-sci-green' : 
-                  msg.isThought ? 'bg-sci-violet/10 border-sci-violet/30 border-l-4 border-l-sci-violet' : 
-                  msg.role === 'user' ? 'bg-sci-cyan/10 text-sci-text border-sci-cyan/30' : 
-                  'bg-sci-panel/80 backdrop-blur-md border-white/10 text-sci-text'}`}>
-                
-                {/* 装饰性角落 */}
-                <div className="absolute top-0 left-0 w-2 h-2 border-t border-l border-white/20"></div>
-                <div className="absolute bottom-0 right-0 w-2 h-2 border-b border-r border-white/20"></div>
+          <AnimatePresence initial={false}>
+            {activeSession.messages.length === 0 ? (
+              <AIEmptyState onAction={(text) => {
+                setInput(text);
+                // Optional: auto-send
+                // sendAIMessage(text, activeSession.mode === 'action');
+              }} />
+            ) : (
+              activeSession.messages.map(msg => (
+              <motion.div 
+                key={msg.id} 
+                initial={{ opacity: 0, y: 20, scale: 0.95 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.9 }}
+                transition={{ duration: 0.3 }}
+                className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'}`}
+              >
+                <div className={`max-w-[95%] p-4 text-[13px] border shadow-lg transition-all clip-corner relative group/msg
+                  ${msg.isDone ? 'bg-sci-green/10 border-sci-green/30 text-sci-green' : 
+                    msg.isThought ? 'bg-sci-violet/10 border-sci-violet/30 border-l-4 border-l-sci-violet' : 
+                    msg.role === 'user' ? 'bg-sci-cyan/10 text-sci-text border-sci-cyan/30' : 
+                    'bg-sci-panel/80 backdrop-blur-md border-white/10 text-sci-text'}`}>
+                  
+                  {/* 装饰性角落 */}
+                  <div className="absolute top-0 left-0 w-2 h-2 border-t border-l border-white/20"></div>
+                  <div className="absolute bottom-0 right-0 w-2 h-2 border-b border-r border-white/20"></div>
 
-                {/* 任务完成特殊头部 */}
-                {msg.isDone && (
-                  <div className="flex items-center justify-between mb-4 pb-3 border-b border-sci-green/20">
-                    <div className="flex items-center gap-2 text-sci-green">
-                      <Sparkles size={18} className="animate-pulse"/>
-                      <span className="font-sci font-black uppercase tracking-wider text-[11px]">任务已完成</span>
+                  {/* 任务完成特殊头部 */}
+                  {msg.isDone && (
+                    <div className="flex items-center justify-between mb-4 pb-3 border-b border-sci-green/20">
+                      <div className="flex items-center gap-2 text-sci-green">
+                        <Sparkles size={18} className="animate-pulse"/>
+                        <span className="font-sci font-black uppercase tracking-wider text-[11px]">任务已完成</span>
+                      </div>
+                      {msg.summary && (
+                        <button 
+                          onClick={() => handleCopySummary(msg.id, msg.summary || '')} 
+                          className="p-1 hover:bg-sci-green/20 transition-colors"
+                          title="复制总结报告"
+                        >
+                          {copyingId === msg.id ? <Check size={14} /> : <Copy size={14} />}
+                        </button>
+                      )}
                     </div>
-                    {msg.summary && (
-                      <button 
-                        onClick={() => handleCopySummary(msg.id, msg.summary || '')} 
-                        className="p-1 hover:bg-sci-green/20 transition-colors"
-                        title="复制总结报告"
-                      >
-                        {copyingId === msg.id ? <Check size={14} /> : <Copy size={14} />}
-                      </button>
-                    )}
-                  </div>
-                )}
+                  )}
 
-                {/* 思考状态头部 */}
-                {msg.isThought && !msg.isDone && (
-                  <div className="flex items-center gap-2 mb-3 text-sci-violet/60">
-                    <BrainCircuit size={14} className="animate-pulse"/>
-                    <span className="text-[10px] font-sci font-black uppercase tracking-widest">正在处理序列...</span>
-                  </div>
-                )}
+                  {/* 思考状态头部 */}
+                  {msg.isThought && !msg.isDone && (
+                    <div className="flex items-center gap-2 mb-3 text-sci-violet/60">
+                      <BrainCircuit size={14} className="animate-pulse"/>
+                      <span className="text-[10px] font-sci font-black uppercase tracking-widest">正在处理序列...</span>
+                    </div>
+                  )}
 
-                <div className="prose prose-invert prose-sm max-w-none prose-p:leading-relaxed prose-pre:bg-transparent prose-pre:p-0 prose-code:text-sci-cyan">
-                  <MarkdownRenderer content={msg.content} />
+                  <div className="prose prose-invert prose-sm max-w-none prose-p:leading-relaxed prose-pre:bg-transparent prose-pre:p-0 prose-code:text-sci-cyan">
+                    <MarkdownRenderer content={msg.content} />
+                  </div>
+
+                  {/* 确认操作按钮 */}
+                  {msg.isPendingConfirmation && msg.commandToExecute && (
+                    <div className="mt-4 p-4 bg-black/40 border border-sci-violet/30 clip-corner">
+                      <div className="flex items-center gap-2 mb-3 text-sci-violet">
+                        <ShieldAlert size={16}/>
+                        <span className="text-xs font-sci font-bold uppercase tracking-widest">需要授权</span>
+                      </div>
+                      <code className="block p-3 bg-black/60 text-sci-violet font-mono text-xs mb-4 border-l-2 border-sci-violet">
+                        {msg.commandToExecute}
+                      </code>
+                      <div className="flex gap-3">
+                        <button 
+                          onClick={() => handleConfirmation(msg.id, true)}
+                          className="flex-1 py-2 bg-sci-violet text-black font-sci font-bold text-xs uppercase tracking-widest hover:bg-sci-violet/80 transition-all clip-corner shadow-[0_0_15px_rgba(139,92,246,0.3)]"
+                        >
+                          执行
+                        </button>
+                        <button 
+                          onClick={() => handleConfirmation(msg.id, false)}
+                          className="flex-1 py-2 bg-white/5 text-sci-text/60 font-sci font-bold text-xs uppercase tracking-widest hover:bg-white/10 transition-all clip-corner"
+                        >
+                          中止
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 已执行/已取消状态 */}
+                  {msg.confirmationStatus && (
+                    <div className={`mt-3 flex items-center gap-2 text-[10px] font-sci font-bold uppercase tracking-widest ${msg.confirmationStatus === 'confirmed' ? 'text-sci-green' : 'text-sci-red'}`}>
+                      {msg.confirmationStatus === 'confirmed' ? (
+                        <><ShieldCheck size={12}/> 序列已授权</>
+                      ) : (
+                        <><ZapOff size={12}/> 序列已中止</>
+                      )}
+                    </div>
+                  )}
+
+                  <div className={`mt-2 text-[9px] font-mono opacity-30 ${msg.role === 'user' ? 'text-right' : 'text-left'}`}>
+                    {msg.timestamp.toLocaleTimeString()}
+                  </div>
                 </div>
-
-                {/* 确认操作按钮 */}
-                {msg.isPendingConfirmation && msg.commandToExecute && (
-                  <div className="mt-4 p-4 bg-black/40 border border-sci-violet/30 clip-corner">
-                    <div className="flex items-center gap-2 mb-3 text-sci-violet">
-                      <ShieldAlert size={16}/>
-                      <span className="text-xs font-sci font-bold uppercase tracking-widest">需要授权</span>
-                    </div>
-                    <code className="block p-3 bg-black/60 text-sci-violet font-mono text-xs mb-4 border-l-2 border-sci-violet">
-                      {msg.commandToExecute}
-                    </code>
-                    <div className="flex gap-3">
-                      <button 
-                        onClick={() => handleConfirmation(msg.id, true)}
-                        className="flex-1 py-2 bg-sci-violet text-black font-sci font-bold text-xs uppercase tracking-widest hover:bg-sci-violet/80 transition-all clip-corner shadow-[0_0_15px_rgba(139,92,246,0.3)]"
-                      >
-                        执行
-                      </button>
-                      <button 
-                        onClick={() => handleConfirmation(msg.id, false)}
-                        className="flex-1 py-2 bg-white/5 text-sci-text/60 font-sci font-bold text-xs uppercase tracking-widest hover:bg-white/10 transition-all clip-corner"
-                      >
-                        中止
-                      </button>
-                    </div>
-                  </div>
-                )}
-
-                {/* 已执行/已取消状态 */}
-                {msg.confirmationStatus && (
-                  <div className={`mt-3 flex items-center gap-2 text-[10px] font-sci font-bold uppercase tracking-widest ${msg.confirmationStatus === 'confirmed' ? 'text-sci-green' : 'text-sci-red'}`}>
-                    {msg.confirmationStatus === 'confirmed' ? (
-                      <><ShieldCheck size={12}/> 序列已授权</>
-                    ) : (
-                      <><ZapOff size={12}/> 序列已中止</>
-                    )}
-                  </div>
-                )}
-
-                <div className={`mt-2 text-[9px] font-mono opacity-30 ${msg.role === 'user' ? 'text-right' : 'text-left'}`}>
-                  {msg.timestamp.toLocaleTimeString()}
-                </div>
-              </div>
-            </div>
-          ))}
+              </motion.div>
+            )))}
+          </AnimatePresence>
           {isLoading && (
-            <div className="flex flex-col items-start animate-in fade-in duration-300">
+            <motion.div 
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="flex flex-col items-start"
+            >
               <div className="bg-sci-panel/40 border border-white/5 p-4 clip-corner">
                 <div className="flex items-center gap-3">
                   <div className="relative">
@@ -760,7 +787,7 @@ export const AIChatPanel = forwardRef<AIChatPanelRef, AIChatPanelProps>(({ logs,
                   <span className="text-xs font-sci font-bold text-sci-cyan/60 uppercase tracking-[0.2em]">正在同步...</span>
                 </div>
               </div>
-            </div>
+            </motion.div>
           )}
         </div>
 

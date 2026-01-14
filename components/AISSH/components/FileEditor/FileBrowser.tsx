@@ -122,15 +122,19 @@ export const FileBrowser: React.FC<FileBrowserProps> = ({ serverId, onFileOpen }
   };
 
   return (
-    <div className="flex flex-col h-full w-full bg-[#0d1117] text-sci-text text-sm overflow-hidden">
+    <div className="flex flex-col h-full w-full bg-gradient-to-b from-black/20 via-sci-obsidian/40 to-black/60 backdrop-blur-md text-sci-text text-sm overflow-hidden relative">
+      {/* 装饰性背景网格 */}
+      <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.02)_1px,transparent_1px)] bg-[size:24px_24px] pointer-events-none"></div>
+
       {/* Header / Toolbar */}
-      <div className="flex items-center p-2 border-b border-white/10 space-x-2">
+      <div className="flex items-center p-2 border-b border-white/5 bg-black/20 backdrop-blur-md space-x-2 relative z-10">
         <Button 
           size="sm" 
           variant="ghost" 
           onClick={() => handleNavigate('/')}
           disabled={loading}
           title="根目录"
+          className="hover:bg-sci-cyan/10 hover:text-sci-cyan"
         >
           <Home size={14} />
         </Button>
@@ -140,10 +144,11 @@ export const FileBrowser: React.FC<FileBrowserProps> = ({ serverId, onFileOpen }
           onClick={handleGoUp}
           disabled={currentPath === '/' || loading}
           title="上级目录"
+          className="hover:bg-sci-cyan/10 hover:text-sci-cyan"
         >
           <ArrowUp size={14} />
         </Button>
-        <div className="flex-1 bg-[#161b22] px-2 py-1 rounded text-xs truncate border border-white/5">
+        <div className="flex-1 bg-black/40 px-2 py-1 rounded text-xs truncate border border-white/10 font-mono text-sci-cyan/80">
           {currentPath}
         </div>
         <Button 
@@ -151,7 +156,7 @@ export const FileBrowser: React.FC<FileBrowserProps> = ({ serverId, onFileOpen }
           variant="ghost" 
           onClick={() => setIsSearchVisible(!isSearchVisible)}
           disabled={loading}
-          className={isSearchVisible ? "text-sci-cyan bg-sci-cyan/10" : ""}
+          className={isSearchVisible ? "text-sci-cyan bg-sci-cyan/10" : "hover:bg-sci-cyan/10 hover:text-sci-cyan"}
           title="搜索文件"
         >
           <Search size={14} />
@@ -162,6 +167,7 @@ export const FileBrowser: React.FC<FileBrowserProps> = ({ serverId, onFileOpen }
           onClick={handleCreateFile}
           disabled={loading}
           title="新建文件"
+          className="hover:bg-sci-cyan/10 hover:text-sci-cyan"
         >
           <Plus size={14} />
         </Button>
@@ -171,6 +177,7 @@ export const FileBrowser: React.FC<FileBrowserProps> = ({ serverId, onFileOpen }
           onClick={() => refreshFileTree(serverId, currentPath)}
           disabled={loading}
           title="刷新"
+          className="hover:bg-sci-cyan/10 hover:text-sci-cyan"
         >
           <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
         </Button>
@@ -178,13 +185,13 @@ export const FileBrowser: React.FC<FileBrowserProps> = ({ serverId, onFileOpen }
 
       {/* Search Input */}
       {isSearchVisible && (
-        <div className="p-2 border-b border-white/5 bg-sci-obsidian/20">
+        <div className="p-2 border-b border-white/5 bg-sci-obsidian/20 relative z-10">
           <div className="relative">
             <input
               type="text"
               autoFocus
               placeholder="搜索当前目录..."
-              className="w-full bg-[#161b22] border border-white/10 rounded px-7 py-1 text-xs focus:border-sci-cyan/50 focus:outline-none"
+              className="w-full bg-black/40 border border-white/10 rounded px-7 py-1 text-xs focus:border-sci-cyan/50 focus:outline-none text-sci-text font-mono"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
@@ -202,22 +209,24 @@ export const FileBrowser: React.FC<FileBrowserProps> = ({ serverId, onFileOpen }
       )}
 
       {/* File List */}
-      <div className="flex-1 overflow-y-auto relative">
+      <div className="flex-1 overflow-y-auto relative z-10 custom-scrollbar">
         {loading && fileList.length === 0 ? (
-          <div className="flex items-center justify-center h-full text-sci-dim">
-            加载中...
+          <div className="flex flex-col items-center justify-center h-full text-sci-dim gap-2">
+            <RefreshCw size={20} className="animate-spin text-sci-cyan/50"/>
+            <span className="text-xs font-sci uppercase tracking-widest">Loading Data...</span>
           </div>
         ) : (
-          <div className="flex flex-col">
+          <div className="flex flex-col p-1">
             {filteredFileList.length === 0 ? (
-              <div className="p-4 text-center text-sci-dim text-xs">
+              <div className="p-8 text-center text-sci-dim text-xs flex flex-col items-center gap-2 opacity-50">
+                <Folder size={24} />
                 {searchQuery ? "未找到匹配文件" : "空目录"}
               </div>
             ) : (
               filteredFileList.map((file) => (
                 <div 
                   key={file.id}
-                  className="flex items-center px-3 py-1.5 hover:bg-[#161b22] cursor-pointer group transition-colors select-none"
+                  className="flex items-center px-3 py-1.5 hover:bg-white/5 cursor-pointer group transition-colors select-none rounded border border-transparent hover:border-white/5"
                   onClick={() => {
                     if (file.type === 'folder') {
                       handleNavigate(file.path);
@@ -227,13 +236,13 @@ export const FileBrowser: React.FC<FileBrowserProps> = ({ serverId, onFileOpen }
                   }}
                   onContextMenu={(e) => handleContextMenu(e, file)}
                 >
-                  <div className="mr-2 text-sci-cyan">
+                  <div className={`mr-2 transition-colors ${file.type === 'folder' ? 'text-sci-violet group-hover:text-sci-violet/80' : 'text-sci-cyan group-hover:text-sci-cyan/80'}`}>
                     {file.type === 'folder' ? <Folder size={14} /> : <FileText size={14} />}
                   </div>
-                  <div className="flex-1 truncate text-xs">
+                  <div className="flex-1 truncate text-xs font-mono group-hover:text-white transition-colors">
                     {file.name}
                   </div>
-                  <div className="text-xs text-sci-dim w-16 text-right group-hover:text-white/70">
+                  <div className="text-[10px] text-sci-dim/50 w-16 text-right group-hover:text-sci-dim font-mono">
                     {formatSize(file.size)}
                   </div>
                 </div>
@@ -245,13 +254,13 @@ export const FileBrowser: React.FC<FileBrowserProps> = ({ serverId, onFileOpen }
         {/* Context Menu */}
         {contextMenu && (
           <div 
-            className="fixed z-[100] bg-[#1c2128] border border-white/10 rounded-md shadow-xl py-1 min-w-[120px]"
+            className="fixed z-[100] bg-sci-obsidian/90 backdrop-blur-md border border-sci-cyan/20 rounded shadow-[0_0_20px_rgba(0,0,0,0.5)] py-1 min-w-[140px]"
             style={{ top: contextMenu.y, left: contextMenu.x }}
             onClick={(e) => e.stopPropagation()}
           >
             {contextMenu.file?.type === 'file' && (
               <button 
-                className="w-full flex items-center px-3 py-2 text-xs hover:bg-sci-cyan/20 text-white/90 transition-colors"
+                className="w-full flex items-center px-3 py-2 text-xs hover:bg-sci-cyan/10 text-sci-text hover:text-sci-cyan transition-colors font-sci uppercase tracking-wide"
                 onClick={() => {
                   if (contextMenu.file) onFileOpen(contextMenu.file.path);
                   setContextMenu(null);
@@ -261,7 +270,7 @@ export const FileBrowser: React.FC<FileBrowserProps> = ({ serverId, onFileOpen }
               </button>
             )}
             <button 
-              className="w-full flex items-center px-3 py-2 text-xs hover:bg-sci-cyan/20 text-white/90 transition-colors"
+              className="w-full flex items-center px-3 py-2 text-xs hover:bg-sci-cyan/10 text-sci-text hover:text-sci-cyan transition-colors font-sci uppercase tracking-wide"
               onClick={() => {
                 if (contextMenu.file) handleBackupFile(contextMenu.file);
                 setContextMenu(null);
@@ -270,7 +279,7 @@ export const FileBrowser: React.FC<FileBrowserProps> = ({ serverId, onFileOpen }
               <Copy size={12} className="mr-2" /> 备份
             </button>
             <button 
-              className="w-full flex items-center px-3 py-2 text-xs hover:bg-sci-cyan/20 text-white/90 transition-colors"
+              className="w-full flex items-center px-3 py-2 text-xs hover:bg-sci-cyan/10 text-sci-text hover:text-sci-cyan transition-colors font-sci uppercase tracking-wide"
               onClick={() => {
                 if (contextMenu.file) handleDownload(contextMenu.file);
                 setContextMenu(null);
@@ -280,7 +289,7 @@ export const FileBrowser: React.FC<FileBrowserProps> = ({ serverId, onFileOpen }
             </button>
             <div className="h-px bg-white/5 my-1" />
             <button 
-              className="w-full flex items-center px-3 py-2 text-xs hover:bg-red-500/20 text-red-400 transition-colors"
+              className="w-full flex items-center px-3 py-2 text-xs hover:bg-red-500/10 text-red-400 transition-colors font-sci uppercase tracking-wide"
               onClick={() => {
                 if (contextMenu.file) handleDeleteFile(contextMenu.file);
                 setContextMenu(null);

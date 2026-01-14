@@ -10,8 +10,10 @@ import { MonacoEditor } from './components/FileEditor/MonacoEditor';
 import { FileBrowser } from './components/FileEditor/FileBrowser';
 import { FileOperations } from './components/FileEditor/FileOperations';
 import { FileTabs } from './components/FileEditor/FileTabs';
-import { Terminal, FileCode, MessageSquare, ChevronRight, ChevronLeft } from 'lucide-react';
-import { CyberPanel } from './common/CyberPanel';
+import { Terminal, Sparkles } from 'lucide-react';
+import { CyberBackground } from './common/CyberBackground';
+import { HackerStandby } from './components/HackerStandby';
+import { motion, AnimatePresence } from 'framer-motion';
 
 const AISSH: React.FC = () => {
   const { 
@@ -35,14 +37,12 @@ const AISSH: React.FC = () => {
   }, [isAIPanelOpen, setIsAIPanelOpen]);
 
   const {
-    fileSessions, activeFileSessionId, openFile, closeFile, updateFileContent, saveFile, setActiveFileSessionId, backupFile
+    fileSessions, activeFileSessionId, openFile, closeFile, updateFileContent, saveFile, backupFile
   } = useFileStore();
 
   const [isAddModalOpen, setIsAddModalOpen] = useState<{ parentId: string | null, editData?: any } | null>(null);
   const [passwordPrompt, setPasswordPrompt] = useState<{ serverId: string, serverName: string } | null>(null);
   const [commandToInsert, setCommandToInsert] = useState<string | null>(null);
-  // Remove activeTab state as we derive it from activeSessionId
-  // const [activeTab, setActiveTab] = useState<'terminal' | 'files'>('terminal');
   const aiChatPanelRef = useRef<AIChatPanelRef>(null);
 
   const [leftWidth, setLeftWidth] = useState(280);
@@ -54,7 +54,6 @@ const AISSH: React.FC = () => {
 
   // Helper to check session type
   const isFileSession = activeSessionId?.endsWith('#files') ?? false;
-  const realActiveSessionId = activeSessionId?.split('#')[0] ?? null;
 
   useEffect(() => {
     const unsubLog = sshManager.onLog((log) => {
@@ -115,7 +114,6 @@ const AISSH: React.FC = () => {
 
   const handleSelectServer = (id: string) => {
     // Check if this is a file session request or regular server request
-    const isFileReq = id.endsWith('#files');
     const realId = id.split('#')[0];
     
     // Ensure the regular session is also tracked if needed, 
@@ -191,11 +189,6 @@ const AISSH: React.FC = () => {
 
   const handleFileOpen = (filePath: string) => {
     if (activeSessionId) {
-      // For file operations, we use the activeSessionId directly as it maps to the specific connection
-      // If it's a file session (e.g. "id#files"), the connection is registered under that ID.
-      // If it's a terminal session (e.g. "id"), the connection is registered under that ID.
-      // But openFile expects the serverId to match the connection.
-      // Since we now have independent connections for files, we should use activeSessionId.
       openFile(activeSessionId, filePath);
     }
   };
@@ -236,9 +229,9 @@ const AISSH: React.FC = () => {
   };
 
   return (
-    <div className="flex h-screen bg-sci-base text-sci-text font-sci overflow-hidden bg-grid-pattern relative">
-      {/* 全局扫描线效果 */}
-      <div className="absolute inset-0 pointer-events-none bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.05)_50%),linear-gradient(90deg,rgba(255,0,0,0.01),rgba(0,255,0,0.005),rgba(0,0,118,0.01))] bg-[length:100%_4px,3px_100%] z-[100] opacity-30"></div>
+    <div className="flex h-screen bg-sci-base text-sci-text font-sci overflow-hidden relative">
+      {/* 动态赛博背景 */}
+      <CyberBackground />
       
       {/* HUD 装饰性边框 */}
       <div className="absolute top-0 left-0 w-32 h-32 border-t-2 border-l-2 border-sci-cyan/20 pointer-events-none z-50"></div>
@@ -247,7 +240,13 @@ const AISSH: React.FC = () => {
       <div className="absolute bottom-0 right-0 w-32 h-32 border-b-2 border-r-2 border-sci-cyan/20 pointer-events-none z-50"></div>
 
       {/* Sidebar Area */}
-      <div style={{ width: leftWidth }} className="flex-shrink-0 select-none bg-sci-obsidian/40 backdrop-blur-md border-r border-white/5 relative z-10">
+      <motion.div 
+        style={{ width: leftWidth }} 
+        className="flex-shrink-0 select-none relative z-10"
+        initial={{ x: -50, opacity: 0 }}
+        animate={{ x: 0, opacity: 1 }}
+        transition={{ duration: 0.5 }}
+      >
         <ServerTree 
           width={leftWidth}
           servers={servers} 
@@ -265,22 +264,16 @@ const AISSH: React.FC = () => {
             else updateFolder(id, { parentId: p });
           }}
           onOpenFileManager={(serverId) => {
-             // 1. Create a special session ID for file manager
              const fileSessionId = `${serverId}#files`;
              const server = servers.find(s => s.id === serverId);
 
-             // 2. Add to openSessions if not present
              if (!openSessions.includes(fileSessionId)) {
                 setOpenSessions(prev => [...prev, fileSessionId]);
              }
-             // 3. Set as active
              setActiveSessionId(fileSessionId);
 
-             // 4. Check connection status and connect if needed
-             // Use connectionStatus of the file session ID, not the original server ID
              const status = useSSHStore.getState().connectionStatus[fileSessionId];
              
-             // Ensure the file browser path is initialized for this session
              if (!useFileStore.getState().fileBrowserPath[fileSessionId]) {
                 useFileStore.getState().setFileBrowserPath(fileSessionId, '/');
              }
@@ -291,13 +284,12 @@ const AISSH: React.FC = () => {
                    updateConnectionStatus(fileSessionId, 'connecting');
                    sshManager.connect(server.ip, server.username, server.password, fileSessionId);
                 } else {
-                   // Prompt for password, passing the file session ID
                    setPasswordPrompt({ serverId: fileSessionId, serverName: `${server.name} (Files)` });
                 }
              }
           }}
         />
-      </div>
+      </motion.div>
 
       <div className="w-px bg-sci-cyan/10 hover:bg-sci-cyan cursor-col-resize transition-colors flex items-center justify-center group z-10" onMouseDown={() => { isResizingLeft.current = true; document.body.style.cursor = 'col-resize'; }}>
         <div className="absolute w-4 h-full"></div>
@@ -307,23 +299,25 @@ const AISSH: React.FC = () => {
       <div className="flex-1 flex flex-col min-w-0 bg-transparent relative h-screen">
         <div className="flex items-center justify-between pr-4 bg-sci-obsidian/20 backdrop-blur-sm border-b border-white/5">
           <SessionTabs />
-          <button 
+          <motion.button 
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
             onClick={() => setIsAIPanelOpen(!isAIPanelOpen)}
-            className={`ml-auto p-2 rounded-lg transition-all duration-300 group relative ${
+            className={`ml-auto mt-1 p-1 rounded-lg transition-all duration-300 group relative ${
               isAIPanelOpen 
                 ? 'text-sci-cyan bg-sci-cyan/10 border-sci-cyan/30' 
                 : 'text-sci-dim hover:text-sci-cyan hover:bg-sci-cyan/5 border-transparent'
             } border`}
             title={isAIPanelOpen ? "隐藏 AI 助手" : "显示 AI 助手"}
           >
-            <MessageSquare size={18} className="group-hover:scale-110 transition-transform" />
+            <Sparkles size={14} className="group-hover:scale-110 transition-transform" />
             {!isAIPanelOpen && (
-              <span className="absolute -top-1 -right-1 w-2 h-2 bg-sci-cyan rounded-full animate-pulse shadow-[0_0_8px_rgba(0,243,255,0.8)]"></span>
+              <span className="absolute -top-0 -right-0 w-1 h-1 bg-sci-cyan rounded-full animate-pulse shadow-[0_0_8px_rgba(0,243,255,0.8)]"></span>
             )}
-          </button>
+          </motion.button>
         </div>
         
-        {/* Terminal Area - Always mounted to preserve state, hidden when not needed */}
+        {/* Terminal Area */}
         <div className={`flex-1 flex flex-col min-w-0 ${(!activeSessionId || isFileSession) ? 'hidden' : 'flex'}`}>
             <TerminalArea 
               commandToInsert={commandToInsert} 
@@ -334,7 +328,11 @@ const AISSH: React.FC = () => {
 
         {/* File Editor Area */}
         {activeSessionId && isFileSession && (
-             <div className="flex-1 flex overflow-hidden">
+             <motion.div 
+               initial={{ opacity: 0, scale: 0.95 }}
+               animate={{ opacity: 1, scale: 1 }}
+               className="flex-1 flex overflow-hidden"
+             >
                  {/* File Browser Sidebar */}
                  <div style={{ width: fileBrowserWidth }} className="flex-shrink-0 flex overflow-hidden border-r border-white/5 bg-[#0d1117]">
                      <FileBrowser serverId={activeSessionId || ''} onFileOpen={handleFileOpen} />
@@ -378,17 +376,18 @@ const AISSH: React.FC = () => {
                          </div>
                      </div>
                  </div>
-             </div>
+             </motion.div>
         )}
  
         {!activeSessionId && (
-              <div className="flex-1 flex flex-col items-center justify-center text-sci-dim opacity-30 select-none">
-                  <div className="w-24 h-24 mb-6 rounded-full border-2 border-sci-cyan/20 flex items-center justify-center animate-pulse">
-                      <Terminal size={48} />
-                  </div>
-                  <p className="text-lg font-sci tracking-widest uppercase">System Standby</p>
-                  <p className="text-xs mt-2 font-mono">Waiting for neural link...</p>
-              </div>
+              <motion.div 
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.2 }}
+                className="flex-1 flex flex-col relative overflow-hidden"
+              >
+                  <HackerStandby />
+              </motion.div>
         )}
       </div>
 
@@ -399,7 +398,7 @@ const AISSH: React.FC = () => {
       )}
 
       {/* AI Panel Area */}
-      <div 
+      <motion.div 
         style={{ width: isAIPanelOpen ? (isMobile ? '350px' : rightWidth) : 0 }} 
         className={`
           flex-shrink-0 bg-sci-obsidian/40 backdrop-blur-md border-l border-white/5 
@@ -407,16 +406,26 @@ const AISSH: React.FC = () => {
           ${isFileSession ? 'hidden' : ''}
         `}
       >
-        <div className="h-full w-full">
-          <AIChatPanel 
-            ref={aiChatPanelRef} 
-            logs={logs} 
-            activeServerId={activeSessionId} 
-            onInsertCommand={handleInsertCommand} 
-            onSwitchServer={handleSelectServer}
-          />
-        </div>
-      </div>
+        <AnimatePresence>
+          {isAIPanelOpen && (
+            <motion.div 
+              className="h-full w-full"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 20 }}
+              transition={{ duration: 0.3 }}
+            >
+              <AIChatPanel 
+                ref={aiChatPanelRef} 
+                logs={logs} 
+                activeServerId={activeSessionId} 
+                onInsertCommand={handleInsertCommand} 
+                onSwitchServer={handleSelectServer}
+              />
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </motion.div>
 
       {isAddModalOpen && (
         <AddServerModal 
