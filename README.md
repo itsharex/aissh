@@ -116,3 +116,4 @@ pnpm run electron:dev
 
 方块智联AI 团队开发 
 [https://www.binterai.com/](https://www.binterai.com/)
+[github 地址](https://github.com/bintelAI/aissh)
