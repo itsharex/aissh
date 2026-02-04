@@ -35,7 +35,9 @@ export class SshGateway implements OnGatewayConnection, OnGatewayDisconnect {
     @ConnectedSocket() client: Socket,
     @MessageBody() config: SshConnectionConfig,
   ) {
-    console.log(`Client ${client.id} requesting connection to ${config.ip} (Server: ${config.serverId})`);
+    console.log(
+      `Client ${client.id} requesting connection to ${config.ip} (Server: ${config.serverId})`,
+    );
     this.sshService.createConnection(client.id, config, this.server);
   }
 
@@ -44,7 +46,11 @@ export class SshGateway implements OnGatewayConnection, OnGatewayDisconnect {
     @ConnectedSocket() client: Socket,
     @MessageBody() payload: { serverId: string; command: string },
   ) {
-    this.sshService.executeCommand(client.id, payload.serverId, payload.command);
+    this.sshService.executeCommand(
+      client.id,
+      payload.serverId,
+      payload.command,
+    );
   }
 
   @SubscribeMessage('ssh-input')
@@ -60,7 +66,12 @@ export class SshGateway implements OnGatewayConnection, OnGatewayDisconnect {
     @ConnectedSocket() client: Socket,
     @MessageBody() payload: { serverId: string; cols: number; rows: number },
   ) {
-    this.sshService.resize(client.id, payload.serverId, payload.cols, payload.rows);
+    this.sshService.resize(
+      client.id,
+      payload.serverId,
+      payload.cols,
+      payload.rows,
+    );
   }
 
   @SubscribeMessage('ssh-exec')
@@ -69,10 +80,16 @@ export class SshGateway implements OnGatewayConnection, OnGatewayDisconnect {
     @MessageBody() payload: { serverId: string; command: string },
   ) {
     try {
-      const output = await this.sshService.exec(client.id, payload.serverId, payload.command);
+      const output = await this.sshService.exec(
+        client.id,
+        payload.serverId,
+        payload.command,
+      );
       return { status: 'ok', output };
     } catch (error) {
-      return { status: 'error', message: error.message };
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      return { status: 'error', message: errorMessage };
     }
   }
 

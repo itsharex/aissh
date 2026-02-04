@@ -10,7 +10,6 @@ import { sshManager } from '../services/sshService';
 import { Terminal as TerminalIcon, Trash2, Sparkles, Loader2, Download, AlertTriangle } from 'lucide-react';
 import { predictCommandRisk } from '../services/geminiService';
 
-import { WebglAddon } from 'xterm-addon-webgl';
 import { CanvasAddon } from 'xterm-addon-canvas';
 
 interface TerminalProps {
@@ -136,21 +135,15 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({
     let addonToDispose: { dispose(): void }[] = [];
 
     // Try to load high-performance renderers
+    // Note: WebGL addon may cause issues with dimensions during rapid re-renders
+    // Using Canvas renderer as default for better stability
     try {
-      const webglAddon = new WebglAddon();
-      term.loadAddon(webglAddon);
-      addonToDispose.push(webglAddon);
-      console.log('Using WebGL renderer');
-    } catch (e) {
-      console.warn('WebGL renderer failed, falling back to Canvas', e);
-      try {
-        const canvasAddon = new CanvasAddon();
-        term.loadAddon(canvasAddon);
-        addonToDispose.push(canvasAddon);
-        console.log('Using Canvas renderer');
-      } catch (e2) {
-        console.warn('Canvas renderer failed, using DOM renderer', e2);
-      }
+      const canvasAddon = new CanvasAddon();
+      term.loadAddon(canvasAddon);
+      addonToDispose.push(canvasAddon);
+      console.log('Using Canvas renderer');
+    } catch (e2) {
+      console.warn('Canvas renderer failed, using DOM renderer', e2);
     }
     
     xtermRef.current = term;
@@ -161,14 +154,22 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({
     // Use ResizeObserver for robust layout handling
     const resizeObserver = new ResizeObserver(() => {
       if (isDisposed) return;
-      
+
       // Use requestAnimationFrame to ensure the browser has finished layout
       requestAnimationFrame(() => {
         if (isDisposed) return;
+        // Check if terminal is fully initialized and has valid dimensions
         if (fitAddonRef.current && xtermRef.current && terminalRef.current?.offsetParent) {
           try {
-            fitAddonRef.current.fit();
-            sshManager.resize(xtermRef.current.cols, xtermRef.current.rows, serverId);
+            const dims = fitAddonRef.current.proposeDimensions();
+            if (dims && dims.cols > 0 && dims.rows > 0) {
+              fitAddonRef.current.fit();
+              const cols = xtermRef.current.cols;
+              const rows = xtermRef.current.rows;
+              if (cols > 0 && rows > 0) {
+                sshManager.resize(cols, rows, serverId);
+              }
+            }
           } catch (e) {
             // Ignore fit errors if element is not ready
           }
@@ -185,8 +186,15 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({
       if (isDisposed) return;
       if (fitAddonRef.current && xtermRef.current) {
         try {
-          fitAddonRef.current.fit();
-          sshManager.resize(xtermRef.current.cols, xtermRef.current.rows, serverId);
+          const dims = fitAddonRef.current.proposeDimensions();
+          if (dims && dims.cols > 0 && dims.rows > 0) {
+            fitAddonRef.current.fit();
+            const cols = xtermRef.current.cols;
+            const rows = xtermRef.current.rows;
+            if (cols > 0 && rows > 0) {
+              sshManager.resize(cols, rows, serverId);
+            }
+          }
         } catch (e) {}
       }
     };
@@ -226,8 +234,17 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({
     // Initial fit with multiple attempts
     const triggerInitialFit = () => {
       if (!isDisposed && fitAddonRef.current && xtermRef.current && terminalRef.current?.offsetParent) {
-        fitAddonRef.current.fit();
-        sshManager.resize(xtermRef.current.cols, xtermRef.current.rows, serverId);
+        try {
+          const dims = fitAddonRef.current.proposeDimensions();
+          if (dims && dims.cols > 0 && dims.rows > 0) {
+            fitAddonRef.current.fit();
+            const cols = xtermRef.current.cols;
+            const rows = xtermRef.current.rows;
+            if (cols > 0 && rows > 0) {
+              sshManager.resize(cols, rows, serverId);
+            }
+          }
+        } catch (e) {}
       }
     };
 
@@ -463,10 +480,10 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({
           
           {/* Disconnected Overlay */}
           {(status === 'disconnected' || status === 'error') && (
-             <div className="absolute inset-0 bg-black/60 backdrop-blur-[1px] flex items-center justify-center z-10 pointer-events-none">
-                 <div className="bg-black/80 border border-sci-red/50 p-4 clip-corner flex items-center gap-3">
-                     <div className="w-2 h-2 bg-sci-red animate-pulse rounded-full"></div>
-                     <span className="text-sci-red font-bold tracking-widest uppercase text-xs">
+             <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10 pointer-events-none">
+                 <div className="bg-sci-red/90 border border-sci-red px-4 py-2 clip-corner flex items-center gap-3 shadow-[0_0_20px_rgba(255,42,0,0.5)]">
+                     <div className="w-2 h-2 bg-white animate-pulse rounded-full"></div>
+                     <span className="text-white font-bold tracking-widest uppercase text-xs">
                         {status === 'error' ? 'Connection Failed' : 'Signal Lost'}
                      </span>
                  </div>
