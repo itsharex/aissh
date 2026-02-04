@@ -142,6 +142,7 @@ export class SshService {
             'diffie-hellman-group15-sha512',
             'diffie-hellman-group16-sha512',
             'diffie-hellman-group18-sha512',
+            'diffie-hellman-group14-sha1',
           ],
           cipher: [
             'aes256-gcm@openssh.com',
@@ -152,6 +153,7 @@ export class SshService {
             'aes256-cbc',
             'aes192-cbc',
             'aes128-cbc',
+            '3des-cbc',
           ],
           serverHostKey: [
             'ssh-ed25519',
