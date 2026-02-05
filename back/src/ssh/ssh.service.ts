@@ -302,8 +302,12 @@ export class SshService {
     }
 
     if (
-      message.includes('handshake') ||
-      message.includes('Unable to exchange')
+      (message.includes('handshake') && message.includes('failed')) ||
+      (message.includes('Unable to exchange') && message.includes('identification')) ||
+      (message.includes('SSH protocol') && message.includes('mismatch')) ||
+      (message.includes('key exchange') && message.includes('failed')) ||
+      (message.includes('algorithm') && message.includes('negotiation') && message.includes('failed')) ||
+      message.includes('ssh2-connect: invalid packet length')
     ) {
       return {
         errorType: SshErrorType.HANDSHAKE_FAILED,
