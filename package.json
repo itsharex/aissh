@@ -78,7 +78,8 @@
     ],
     "asar": true,
     "asarUnpack": [
-      "**/node_modules/node-pty/**/*"
+      "**/node_modules/node-pty/**/*",
+      "backend/**/*"
     ],
     "extraResources": [
       {
